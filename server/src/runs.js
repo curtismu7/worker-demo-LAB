@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { callTool } from './pep.js';
 import { decideApproval } from './approvals.js';
 import { mintToken, claimSummary } from './tokens.js';
-import { SCENARIOS } from './scenarios.js';
+import { SCENARIOS, AGENT_SUB } from './scenarios.js';
 
-export const AGENT_SUB = 'worker-agent';
+export { AGENT_SUB };
 export const ARM_TTL_MS = 60 * 60 * 1000;
 
 // Runs a scenario's steps in order. A deny does not stop the run (the agent reports it and moves on); a hold parks the run,
@@ -82,16 +82,13 @@ export function createRunner({ cfg, fetchImpl = fetch, now = () => new Date() })
     held.resolution = { decision, by: approver };
     if (decision === 'deny') { run.status = 'denied'; run.parkedAt = null; ctxs.delete(id); return run; }
 
-    // Approved: the agent retries the held call, then carries on with the rest of the plan.
-    const sc = SCENARIOS[run.scenario];
-    const s = sc.steps[held.index];
-    const agent = s.agent ?? AGENT_SUB;
-    const out = await callTool({ url: cfg.pepUrl, token: await tokenFor(ctx, run.persona, agent, s.scope), name: s.tool, args: s.args, id: 100 + held.index, traceparent: ctx.tp, fetchImpl });
-    ctx.tp = out.traceparent ?? ctx.tp;
-    run.steps.push({ index: held.index, retry: true, agent, scope: s.scope ?? null, tool: s.tool, args: s.args, note: 'Retried after approval.', expected: 'allow', ...out, asDesigned: out.outcome === 'allow' });
+    // Approved: the Privilege demo runs the held call itself, once, at the moment of approval (privilege-demo pep.resolve). The agent does
+    // not retry (a retry would just be held again). The approval record carries the outcome; show it, then carry on with the plan.
+    const o = res.record?.outcome;
+    run.steps.push({ index: held.index, ranOnApproval: true, agent: held.agent, scope: held.scope, tool: held.tool, args: held.args, note: 'Run once by the policy point when the approval was given.',
+      expected: 'allow', outcome: o?.executed ? 'allow' : o?.decision === 'deny' ? 'deny' : 'error', rule: o?.rule, reason: o?.reason, result: o?.result, asDesigned: o?.executed === true });
     run.parkedAt = null;
-    if (out.outcome === 'hold') { run.status = 'parked'; run.parkedAt = held.index; return run; }
-    if (out.outcome === 'error') { run.status = 'failed'; return run; }
+    if (!o?.executed) { run.status = 'failed'; ctxs.delete(id); return run; }
     await execute(run, ctx, held.index + 1);
     return run;
   }

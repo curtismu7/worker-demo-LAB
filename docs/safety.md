@@ -15,7 +15,9 @@
 | GitHub, CloudWatch, knowledge base, backlog, Confluence | Simulated: mocks inside the Privilege demo |
 | Policy decisions (allow, deny, hold) | Local Privilege demo evaluating Cedar. Not the Privilege product |
 | Access tokens | Stub issuer, not PingFederate |
-| Delegated hops: one token per source agent with its own `act` and scope | Modelled. Whether the policies deny the over-reach depends on the utility pack: UNVERIFIED until run against it |
+| Delegated hops: one token per source agent with its own `act` and scope | The hops and per-agent tokens are real calls. The scope is carried but NOT read by the pack's policies (measured 2026-10-21): a narrower scope does not change a decision |
+| Over-reach in the delegated lane | A source agent tries `github.merge_pr`: denied by the pack's never-merge rule, whatever scope it holds. Verified against the real pack |
 | Unattended token subject | Persona, not the agent: UNVERIFIED limit of the stub issuer |
-| Approvals through `/api/approvals/:id/approve` with a Bearer token | UNVERIFIED against the real stack |
+| Approvals through `/api/approvals/:id/approve` with a Bearer token | Verified 2026-10-21 against the real pack: Bearer alone is accepted, and the owner of the held call is refused (403). On approval the policy point runs the held call once itself; the agent does not retry |
+| Groups, people, repos, log groups | Invented by the Privilege demo's utility pack. Not the customer's |
 | RFC 8693 (act claim) | Source listed in the content pack as not-read |

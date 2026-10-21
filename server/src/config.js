@@ -4,8 +4,8 @@ import { assertBindAllowed, isLoopbackHost } from './safety.js';
 export function config(env = process.env) {
   return {
     port: Number(env.PORT) || 6700,
-    // Persona names the stub issuer knows. Provisional until the Privilege demo's utility pack lands.
-    personas: (env.PERSONAS || 'mark,mary,priya,dana').split(',').map((s) => s.trim()).filter(Boolean),
+    // Persona names the stub issuer knows. The utility pack's people (invented): eli, gwen, ben, cora, priya (the approver).
+    personas: (env.PERSONAS || 'eli,gwen,ben,cora,priya').split(',').map((s) => s.trim()).filter(Boolean),
     host: env.HOST || '127.0.0.1',
     // Hosts besides loopback that this server may call (a container reaching the Privilege demo by name). Nothing else leaves.
     allowedHosts: (env.ALLOWED_HOSTS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),

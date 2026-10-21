@@ -20,7 +20,8 @@
     "prepare": "git config core.hooksPath .githooks || true",
     "build": "npm run build -w web",
     "reset": "node scripts/reset.mjs",
-    "pack": "node scripts/build-content-pack.mjs && node scripts/validate-content-pack.mjs"
+    "pack": "node scripts/build-content-pack.mjs && node scripts/validate-content-pack.mjs",
+    "smoke": "node scripts/smoke.mjs"
   },
   "devDependencies": {
     "ajv": "^8.20.0"

@@ -26,12 +26,15 @@ function fakeFetch({ down = false } = {}) {
       calls.push({ id: m[1], verb: m[2], by: subOf(init.headers.authorization) });
       if (subOf(init.headers.authorization) === 'mary' || subOf(init.headers.authorization) === 'eli') return { ok: false, status: 403, json: async () => ({ error: 'not_an_approver' }) };
       if (m[2] === 'approve') approved.add(m[1]);
-      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+      const outcome = m[2] === 'approve' ? { decision: 'allow', rule: 'u13-analysts-backlog', executed: true, result: { mock: true, status: 'updated' } } : { decision: 'deny', rule: 'hold', executed: false };
+      return { ok: true, status: 200, json: async () => ({ id: m[1], status: m[2] === 'approve' ? 'approved' : 'denied', outcome }) };
     }
     seen.push({ auth: init.headers.authorization, name: b.params.name });
     const t = b.params.name;
     const heldTool = t === 'backlog.update_story' || t === 'confluence.update_requirement';
+    const otherRepo = t === 'github.read_pr' && b.params.arguments.repo === 'meter-data-lake' && subOf(init.headers.authorization) === 'eli';
     const reply = t === 'github.merge_pr' ? { error: { code: -32003, message: 'denied by policy', data: { rule: 'forbid-merge', reason: 'no merge authority' } } }
+      : otherRepo ? { error: { code: -32003, message: 'denied by policy', data: { rule: 'u40-repo-scope-engineers', reason: 'other team repo' } } }
       : heldTool && !approved.has('A1') ? { error: { code: -32004, message: 'held for approval', data: { rule: 'hold-update', approvalId: 'A1', approvers: ['priya'] } } }
         : { result: { content: [{ type: 'text', text: JSON.stringify({ ok: t }) }] } };
     return { status: 200, headers: { get: () => '00-trace-span-01' }, json: async () => ({ jsonrpc: '2.0', id: b.id, ...reply }) };
@@ -52,13 +55,14 @@ const app = (f) => createApp({ cfg: config({}), fetchImpl: f });
 describe('runs', () => {
   it('attended code review: reads allowed, merge denied, run finishes as designed', async () => {
     const f = fakeFetch();
-    const res = await request(app(f)).post('/api/runs').send({ scenario: 'code-review', persona: 'priya' });
+    const res = await request(app(f)).post('/api/runs').send({ scenario: 'code-review', persona: 'eli' });
     expect(res.status).toBe(201);
     expect(res.body.status).toBe('done');
-    expect(res.body.steps.map((s) => s.outcome)).toEqual(['allow', 'allow', 'allow', 'deny']);
+    expect(res.body.steps.map((s) => s.outcome)).toEqual(['allow', 'allow', 'allow', 'deny', 'deny']);
     expect(res.body.steps.every((s) => s.asDesigned)).toBe(true);
-    expect(res.body.steps[3].rule).toBe('forbid-merge');
-    expect(res.body.claims).toMatchObject({ sub: 'priya', act: 'worker-agent' });
+    expect(res.body.steps[3].rule).toBe('u40-repo-scope-engineers');
+    expect(res.body.steps[4].rule).toBe('forbid-merge');
+    expect(res.body.claims).toMatchObject({ sub: 'eli', act: 'delivery-agent' });
   });
 
   it('a hold parks the run and skips later steps', async () => {
@@ -72,7 +76,7 @@ describe('runs', () => {
     const f = fakeFetch();
     const res = await request(app(f)).post('/api/runs').send({ scenario: 'code-review', persona: 'priya' });
     expect(res.body.tokens).toHaveLength(1);
-    expect(res.body.tokens[0]).toMatchObject({ mock: true, issuer: 'stub issuer (not PingFederate)', agent: 'worker-agent' });
+    expect(res.body.tokens[0]).toMatchObject({ mock: true, issuer: 'stub issuer (not PingFederate)', agent: 'delivery-agent' });
     expect(res.body.tokens[0].jwt.split('.')).toHaveLength(3);
     expect(f.seen.every((s) => s.auth === `Bearer ${res.body.tokens[0].jwt}`)).toBe(true);
   });
@@ -97,7 +101,7 @@ describe('runs', () => {
     expect((await request(a).post('/api/runs').send({})).status).toBe(400);
     expect((await request(a).post('/api/runs').send({ scenario: 'nope', persona: 'x' })).body.error).toBe('unknown_scenario');
     expect((await request(a).get('/api/runs/none')).status).toBe(404);
-    expect((await request(a).get('/api/scenarios')).body.scenarios.map((s) => s.id)).toEqual(['code-review', 'sprint-planning', 'compliance-evidence', 'evidence-sweep']);
+    expect((await request(a).get('/api/scenarios')).body.scenarios.map((s) => s.id)).toEqual(['code-review', 'restricted-evidence', 'sprint-planning', 'compliance-evidence', 'evidence-sweep']);
   });
 });
 
@@ -138,7 +142,7 @@ describe('unattended lane', () => {
 describe('parked runs: approve, deny, expire, kill', () => {
   const park = async (a, persona = 'eli', scenario = 'sprint-planning') => (await request(a).post('/api/runs').send({ scenario, persona })).body;
 
-  it('approve: the approver decides, the agent retries the held call and the run finishes', async () => {
+  it('approve: the approver decides, the policy point runs the held call once, and the run finishes (no agent retry)', async () => {
     const f = fakeFetch();
     const a = app(f);
     const run = await park(a, 'mark');
@@ -148,7 +152,9 @@ describe('parked runs: approve, deny, expire, kill', () => {
     expect(f.calls).toEqual([{ id: 'A1', verb: 'approve', by: 'priya' }]);
     expect(res.body.status).toBe('done');
     const last = res.body.steps.at(-1);
-    expect(last).toMatchObject({ retry: true, outcome: 'allow', tool: 'backlog.update_story' });
+    expect(last).toMatchObject({ ranOnApproval: true, outcome: 'allow', tool: 'backlog.update_story', result: { mock: true, status: 'updated' } });
+    // The agent never calls the held tool again: exactly one tools/call for it (the original, held one).
+    expect(f.seen.filter((s) => s.name === 'backlog.update_story')).toHaveLength(1);
     expect(res.body.steps.find((s) => s.outcome === 'hold').resolution).toEqual({ decision: 'approve', by: 'priya' });
   });
 

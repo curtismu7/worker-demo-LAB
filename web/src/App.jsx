@@ -31,7 +31,7 @@ export default function App() {
   useEffect(() => {
     Promise.all([getScenarios(), getPersonas()]).then(([s, p]) => {
       setScenarios(s.scenarios); setPersonas(p.personas); setApprover(p.personas.includes("priya") ? "priya" : p.personas[0] ?? "");
-      setScenarioId(s.scenarios[0]?.id ?? ""); setPersona(p.personas[0] ?? "");
+      setScenarioId(s.scenarios[0]?.id ?? ""); setPersona(p.personas.includes(s.scenarios[0]?.persona) ? s.scenarios[0].persona : p.personas[0] ?? "");
     }).catch((e) => setError(e.message));
     getArm().then(setArmState).catch(() => {});
     Promise.all([getChannels(), getCustomer()]).then(([c, cu]) => { setChannels(Array.isArray(c?.channels) ? c.channels : []); if (cu?.brand?.name) setCustomer(cu); setChannelId(cu?.defaultChannel ?? ""); }).catch(() => {});
@@ -65,6 +65,12 @@ export default function App() {
   const onSimulate = () => run && play(run.steps.length);
   const onReset = () => { resetServer().catch(() => {}); clearTimeout(timer.current); setRun(null); setShown(0); setError(""); setResetKey((k) => k + 1); };
   const sc = scenarios.find((s) => s.id === scenarioId);
+  // Each scenario is written for one person; switching scenario signs in as them (still changeable).
+  function onScenario(id) {
+    setScenarioId(id);
+    const s = scenarios.find((x) => x.id === id);
+    if (s?.persona && personas.includes(s.persona)) setPersona(s.persona);
+  }
   const channel = channels.find((c) => c.id === channelId) ?? channels[0];
   const needsArm = sc?.lane === "unattended";
   const onArm = () => setArm(!arm.armed).then(setArmState).catch((e) => setError(e.message));
@@ -79,7 +85,7 @@ export default function App() {
 
       <section className="controls" aria-label="Run controls">
         <label>Scenario
-          <select value={scenarioId} onChange={(e) => setScenarioId(e.target.value)}>
+          <select value={scenarioId} onChange={(e) => onScenario(e.target.value)}>
             {Object.entries(LANES).map(([lane, name]) => (
               <optgroup key={lane} label={name}>{scenarios.filter((s) => s.lane === lane).map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}</optgroup>
             ))}
@@ -136,7 +142,7 @@ export default function App() {
           <ol className="steps">
             {steps.slice(0, shown).map((s, i) => (
               <li key={i} className={`step step-${s.outcome}`}>
-                <strong>{s.retry ? "Retried: " : ""}{OUTCOME_TEXT[s.outcome]}</strong> <code>{s.tool}</code>{s.agent && <span className="agent"> by {s.agent}{s.scope ? ` (${s.scope})` : ""}</span>}
+                <strong>{s.ranOnApproval ? "Ran on approval: " : ""}{OUTCOME_TEXT[s.outcome]}</strong> <code>{s.tool}</code>{s.agent && <span className="agent"> by {s.agent}{s.scope ? ` (${s.scope})` : ""}</span>}
                 <span className="note">{s.note}</span>
                 {(s.rule || s.reason) && <span className="why">{s.rule}{s.reason ? `: ${s.reason}` : ""}</span>}
                 {s.approvalId && <span className="why">Approval {s.approvalId} waiting on {(s.approvers ?? []).join(", ")}</span>}

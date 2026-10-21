@@ -8,16 +8,18 @@ About ten minutes. Start it (`npm start`, then http://127.0.0.1:6700/), turn on 
 
 ## Flow
 
-1. **Set the scene (30 seconds).** Pick the channel the customer cares about (Teams, GitHub, Cowork, a website, or the HR chatbot site they already have). "The channel is a skin. What stays the same is the identity chain underneath."
-2. **Attended, `code-review` (2 minutes).** Run it. Reads and the review comment go through. The merge is refused, and no approval can change that. Open the Tokens panel: `sub` is the person, `act` is the agent. Both land in the audit trail.
-3. **Attended with a write, `sprint-planning` (2 minutes).** A draft is allowed; changing a real story waits for a human. Approve it as a different person, then try to approve as the person who asked: it is refused. "Nobody approves their own call." The agent then retries and the run finishes.
-4. **Delegated, `compliance-evidence` (3 minutes).** One token per source agent, each with a narrower scope. The last step has the GitHub agent reach for logs: that is the over-reach, and the diagram shows it landing on the policy point. "This is what level of access each agent in the chain is given."
-5. **Unattended, `evidence-sweep` (2 minutes).** Show that Run is disabled until you arm it, and that the arm lapses in an hour. Reads run; the requirement update parks. Press the kill switch: it disarms and cancels the parked run, so nothing resumes.
-6. **Reset.** The Reset button (or `npm run reset`) clears every run and puts the diagram boxes back where they started.
+1. **Set the scene (30 seconds).** Pick the channel the customer cares about (Teams, GitHub, Cowork, a website, or the HR chatbot site they already have). "The channel is a skin. What stays the same is the identity chain underneath." Each scenario signs in as its own person.
+2. **Attended, `code-review` (2 minutes).** As Eli, an engineer. Reads and the review comment in his own repo go through. The other team's repo is refused (engineers are scoped per repository), and so is the merge, which no approval can change. Open the Tokens panel: `sub` is the person, `act` is the agent. Both land in the audit trail.
+3. **Restricted evidence, `restricted-evidence` (1 minute).** Same engineer asks for security logs and audit evidence: refused. "The classification is set by the server, not by the caller."
+4. **Attended with a write, `sprint-planning` (2 minutes).** As Ben, an analyst. A draft is allowed; changing a real story waits for a human. Try approving as Ben: refused ("nobody approves their own call"). Approve as Priya: the policy point runs the call once, itself. The agent does not retry.
+5. **Delegated, `compliance-evidence` (2 minutes).** As Cora, in compliance. One token per source agent, each its own identity. The restricted sources are allowed for her. Then the GitHub agent tries to merge the pull request it was gathering evidence from: refused whatever the person may do.
+6. **Unattended, `evidence-sweep` (2 minutes).** Show that Run is disabled until you arm it, and that the arm lapses in an hour. Reads run; the requirement update parks. Approve as Priya and it runs once, or press the kill switch: it disarms and cancels the parked run, so nothing resumes.
+7. **Reset.** The Reset button (or `npm run reset`) clears every run and puts the diagram boxes back where they started.
 
 ## Likely questions
 
 - **"Is this the real Privilege product?"** The decisions come from the local Privilege demo, which evaluates Cedar policies. The tokens come from a local stub issuer, not PingFederate. Nothing here talks to GitHub, CloudWatch or Confluence.
 - **"Does Ping generate the compliance report?"** No. Ping governs the agent's access to whatever tool produces the report. The reporting tool is a third-party mock here.
+- **"Does a narrower token scope stop the agent?"** Not in this pack. Each hop carries its own scope, but the policies decide on the person's group, the tool, the repo and the data classification. Measured: a compliance token limited to `github:read` still read restricted logs. Say so; do not claim scope enforcement.
 - **"Why is the unattended token still tied to a person?"** UNVERIFIED limit of the stub issuer: it cannot mint a token whose subject is the agent yet. In production the unattended chain has the agent as the subject and no actor claim.
-- **"Does the approval API accept a Bearer token on its own?"** UNVERIFIED against the real stack. The demo assumes it does.
+- **"Do the groups match ours?"** No. The groups and people are invented, and the real ones would come from the customer's PingFederate (UNVERIFIED whether it puts `groups` and an object-valued `act` in access tokens).

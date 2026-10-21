@@ -55,6 +55,18 @@ describe("buildGraph", () => {
   });
 });
 
+describe("suggested persona", () => {
+  it("signs in as the scenario's own person when the scenario changes", async () => {
+    globalThis.fetch = vi.fn(async (url) => ({ ok: true, status: 200, json: async () => (
+      url === "/api/scenarios" ? { scenarios: [{ id: "a", title: "A", blurb: "", lane: "attended", persona: "eli", stepCount: 1 }, { id: "b", title: "B", blurb: "", lane: "attended", persona: "ben", stepCount: 1 }] }
+        : url === "/api/personas" ? { personas: ["eli", "ben", "priya"] } : { armed: false }) }));
+    render(<App />);
+    await waitFor(() => expect(screen.getByLabelText("Signed in as")).toHaveValue("eli"));
+    fireEvent.change(screen.getByLabelText("Scenario"), { target: { value: "b" } });
+    expect(screen.getByLabelText("Signed in as")).toHaveValue("ben");
+  });
+});
+
 describe("unattended lane", () => {
   it("cannot run until armed, and the switch arms it", async () => {
     let armed = false;
@@ -79,7 +91,7 @@ describe("parked run", () => {
   it("shows the approval card, approves as the chosen approver and shows the retry", async () => {
     const posts = [];
     globalThis.fetch = vi.fn(async (url, init) => {
-      if (init?.method === "POST" && url.includes("/resolve")) { posts.push(JSON.parse(init.body)); return { ok: true, status: 200, json: async () => ({ ...PARKED, status: "done", steps: [...PARKED.steps, { index: 0, retry: true, tool: "backlog.update_story", outcome: "allow", expected: "allow", asDesigned: true, note: "r" }] }) }; }
+      if (init?.method === "POST" && url.includes("/resolve")) { posts.push(JSON.parse(init.body)); return { ok: true, status: 200, json: async () => ({ ...PARKED, status: "done", steps: [...PARKED.steps, { index: 0, ranOnApproval: true, tool: "backlog.update_story", outcome: "allow", expected: "allow", asDesigned: true, note: "r" }] }) }; }
       return { ok: true, status: 200, json: async () => (url === "/api/scenarios" ? { scenarios: [{ id: "s", title: "S", blurb: "", lane: "attended", stepCount: 1 }] } : url === "/api/personas" ? { personas: ["mark", "priya"] } : url === "/api/arm" ? { armed: false } : PARKED) };
     });
     render(<App />);
@@ -87,7 +99,7 @@ describe("parked run", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
     await waitFor(() => expect(screen.getByRole("group", { name: "Approval needed" })).toBeInTheDocument(), { timeout: 3000 });
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
-    await waitFor(() => expect(screen.getByText(/Retried: Allowed/)).toBeInTheDocument(), { timeout: 3000 });
+    await waitFor(() => expect(screen.getByText(/Ran on approval: Allowed/)).toBeInTheDocument(), { timeout: 3000 });
     expect(posts).toEqual([{ decision: "approve", approver: "priya" }]);
     expect(screen.queryByRole("group", { name: "Approval needed" })).not.toBeInTheDocument();
   });

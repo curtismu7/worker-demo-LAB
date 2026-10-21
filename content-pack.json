@@ -65,20 +65,25 @@
     {
       "id": "S01",
       "title": "Code and architecture review",
-      "say": "A signed-in engineer asks the agent to review a pull request. It reads, comments, then tries to merge."
+      "say": "A signed-in engineer asks the agent to review a pull request. It reads, comments, strays into another team's repo, then tries to merge."
     },
     {
       "id": "S02",
+      "title": "Restricted evidence stays restricted",
+      "say": "An engineer asks the agent for security-event logs and audit evidence. Both are restricted to the compliance group."
+    },
+    {
+      "id": "S03",
       "title": "Sprint planning and story writing",
       "say": "A business analyst asks for a draft story, then for an update to an existing one."
     },
     {
-      "id": "S03",
+      "id": "S04",
       "title": "Compliance evidence collection",
-      "say": "A compliance officer asks for CIP-010 evidence. The collector delegates to one agent per source, each with narrower access. One agent then reaches outside its remit."
+      "say": "A compliance officer asks for CIP-010 evidence. The collector delegates to one agent per source, each its own identity. Then one agent reaches for something it should never have."
     },
     {
-      "id": "S04",
+      "id": "S05",
       "title": "Quarterly evidence sweep (unattended)",
       "say": "A schedule fires the sweep with nobody signed in. Reads run; the requirement update waits for a human."
     }
@@ -87,13 +92,28 @@
     {
       "id": "try-code-review",
       "label": "Code and architecture review",
-      "description": "A signed-in engineer asks the agent to review a pull request. It reads, comments, then tries to merge.",
+      "description": "A signed-in engineer asks the agent to review a pull request. It reads, comments, strays into another team's repo, then tries to merge.",
       "group": "try-it",
       "action": {
         "type": "route",
         "href": "/#scenario-code-review"
       },
       "story": "S01",
+      "terms": [
+        "worker-agent",
+        "pep"
+      ]
+    },
+    {
+      "id": "try-restricted-evidence",
+      "label": "Restricted evidence stays restricted",
+      "description": "An engineer asks the agent for security-event logs and audit evidence. Both are restricted to the compliance group.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#scenario-restricted-evidence"
+      },
+      "story": "S02",
       "terms": [
         "worker-agent",
         "pep"
@@ -108,7 +128,7 @@
         "type": "route",
         "href": "/#scenario-sprint-planning"
       },
-      "story": "S02",
+      "story": "S03",
       "terms": [
         "worker-agent",
         "pep"
@@ -117,13 +137,13 @@
     {
       "id": "try-compliance-evidence",
       "label": "Compliance evidence collection",
-      "description": "A compliance officer asks for CIP-010 evidence. The collector delegates to one agent per source, each with narrower access. One agent then reaches outside its remit.",
+      "description": "A compliance officer asks for CIP-010 evidence. The collector delegates to one agent per source, each its own identity. Then one agent reaches for something it should never have.",
       "group": "try-it",
       "action": {
         "type": "route",
         "href": "/#scenario-compliance-evidence"
       },
-      "story": "S03",
+      "story": "S04",
       "terms": [
         "act-claim",
         "pep"
@@ -138,7 +158,7 @@
         "type": "route",
         "href": "/#scenario-evidence-sweep"
       },
-      "story": "S04",
+      "story": "S05",
       "terms": [
         "unattended",
         "kill-switch"

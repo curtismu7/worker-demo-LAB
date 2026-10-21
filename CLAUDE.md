@@ -11,5 +11,6 @@ Standalone SE demo (tier: Demo, catalog D22/D23, utility skin). A worker agent a
   - Netguard: no outbound except loopback and `ALLOWED_HOSTS`. Tests use an injected `fetchImpl`, never the network.
   - New CSS uses the theme variables (no purple); text is rendered as text.
   - Never write into another agent's repo. privilege-demo belongs to agents-19; ask via the board.
-  - Tool names, scopes and persona names are provisional until privilege-demo's utility pack merges. Tests run against a fake PEP, so rerun against the real one.
+  - The unit tests use a fake PEP. The truth is `npm run smoke` against the real privilege-demo utility pack (see README); rerun it after any scenario change. Tool arguments must match the pack's schemas (enums), or the call is denied `invalid-arguments`.
+  - The pack's policies ignore token scope. Never claim scope enforcement. A held call is run once by the policy point on approval: the agent must not retry it.
 - Never commit `.env`. Commits end with the Co-Authored-By trailer; the gitleaks pre-commit hook runs on every commit.
