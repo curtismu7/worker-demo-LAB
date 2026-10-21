@@ -3,7 +3,7 @@
 A standalone SE demo of a worker agent. It runs three ways: attended (a signed-in person asks), delegated (the agent hands work to narrower source agents), and unattended (a schedule, no person present). Every tool call goes through the Privilege demo's policy enforcement point.
 
 **Catalog:** D22 + D23, with a utility skin (NERC CIP style compliance evidence). One of the family of small standalone SE demo repos.
-**Status:** v0.1.0, step W0 only. The server answers `GET /api/health`; there are no lanes and no web UI yet. Nothing here is a real GitHub, CloudWatch or Confluence connection; those will be labelled mocks.
+**Status:** v0.1.0, W1 server core. `POST /api/runs` runs a scripted attended scenario (code-review, sprint-planning) through the Privilege demo. No web UI yet. Tests use a fake Privilege demo; the real stack has not been exercised, and the utility tool names are provisional until privilege-demo's pack merges. Nothing here is a real GitHub, CloudWatch or Confluence connection.
 
 ## Run
 
