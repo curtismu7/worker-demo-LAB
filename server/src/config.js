@@ -5,15 +5,18 @@ export function config(env = process.env) {
     host: env.HOST || '127.0.0.1',
     // The Privilege demo's MCP door. Every agent tool call goes through it.
     pepUrl: env.PEP_URL || 'http://127.0.0.1:4510/mcp',
+    // Mock mode: the Privilege demo stack's stub issuer (not PingFederate). Loopback only.
+    mintUrl: env.MINT_URL || 'http://127.0.0.1:9031/mint',
   };
 }
 
 export function startupProblems(cfg) {
   const problems = [];
   if (!Number.isInteger(cfg.port) || cfg.port < 1 || cfg.port > 65535) problems.push('PORT must be 1-65535');
-  try {
-    const u = new URL(cfg.pepUrl);
-    if (!['http:', 'https:'].includes(u.protocol)) problems.push('PEP_URL must be http(s)');
-  } catch { problems.push('PEP_URL is not a valid URL'); }
+  for (const [k, v] of [['PEP_URL', cfg.pepUrl], ['MINT_URL', cfg.mintUrl]]) {
+    try {
+      if (!['http:', 'https:'].includes(new URL(v).protocol)) problems.push(`${k} must be http(s)`);
+    } catch { problems.push(`${k} is not a valid URL`); }
+  }
   return problems;
 }
