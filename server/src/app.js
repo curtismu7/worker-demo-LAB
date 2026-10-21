@@ -1,3 +1,6 @@
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { createRunner } from './runs.js';
 import { listScenarios } from './scenarios.js';
@@ -17,6 +20,7 @@ export function createApp({ cfg, now = () => new Date(), fetchImpl = fetch }) {
 
   const runner = createRunner({ cfg, now, fetchImpl });
   // Mock sign-in: the persona names come from the Privilege demo's stub issuer. No token ever appears in a response.
+  app.get('/api/personas', (_req, res) => res.json({ personas: cfg.personas }));
   app.get('/api/scenarios', (_req, res) => res.json({ scenarios: listScenarios() }));
   app.get('/api/runs', (_req, res) => res.json({ runs: runner.list() }));
   app.get('/api/runs/:id', (req, res) => { const r = runner.get(req.params.id); return r ? res.json(r) : res.status(404).json({ error: 'not_found' }); });
@@ -31,6 +35,12 @@ export function createApp({ cfg, now = () => new Date(), fetchImpl = fetch }) {
   });
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'not_found' }));
+  const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/dist');
+  if (fs.existsSync(dist)) {
+    app.use(express.static(dist));
+    app.get('*', (_req, res) => res.sendFile(path.join(dist, 'index.html')));
+  }
+
   app.use((err, _req, res, _next) => {
     if (err?.type === 'entity.parse.failed') return res.status(400).json({ error: 'bad_json' });
     return res.status(500).json({ error: 'internal_error' });

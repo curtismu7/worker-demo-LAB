@@ -2,6 +2,8 @@
 export function config(env = process.env) {
   return {
     port: Number(env.PORT) || 6700,
+    // Persona names the stub issuer knows. Provisional until the Privilege demo's utility pack lands.
+    personas: (env.PERSONAS || 'mark,mary,priya,dana').split(',').map((s) => s.trim()).filter(Boolean),
     host: env.HOST || '127.0.0.1',
     // The Privilege demo's MCP door. Every agent tool call goes through it.
     pepUrl: env.PEP_URL || 'http://127.0.0.1:4510/mcp',
