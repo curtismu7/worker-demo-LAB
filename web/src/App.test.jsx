@@ -92,3 +92,28 @@ describe("parked run", () => {
     expect(screen.queryByRole("group", { name: "Approval needed" })).not.toBeInTheDocument();
   });
 });
+
+describe("channel, presenter and tokens", () => {
+  const SC = { id: "code-review", title: "Code review", blurb: "b", lane: "attended", stepCount: 1, prompt: "Review PR 42.", talk: ["Reads are allowed.", "Merge is refused."] };
+  const R = { id: "r", status: "done", persona: "priya", claims: { sub: "priya", act: "worker-agent", groups: [] }, steps: [{ index: 0, tool: "github.read_pr", outcome: "allow", expected: "allow", asDesigned: true, note: "n" }],
+    tokens: [{ agent: "worker-agent", scope: null, mock: true, jwt: "aaa.bbb.ccc", claims: { sub: "priya", act: "worker-agent" } }] };
+  it("always shows the simulated banner, the channel frame, and the talk track only in presenter mode", async () => {
+    globalThis.fetch = vi.fn(async (url) => ({ ok: true, status: 200, json: async () => (
+      url === "/api/scenarios" ? { scenarios: [SC] } : url === "/api/personas" ? { personas: ["priya"] } : url === "/api/arm" ? { armed: false }
+        : url === "/api/channels" ? { channels: [{ id: "teams", name: "Microsoft Teams", how: "h", identity: "Authenticate the user through Ping." }, { id: "hr-chatbot", name: "HR chatbot (existing site)", how: "h2", identity: "i2" }] }
+          : url === "/api/customer" ? { brand: { name: "Acme Power" }, defaultChannel: "teams", vocabulary: {} } : R) }));
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Acme Power" })).toBeInTheDocument());
+    expect(screen.getByRole("note")).toHaveTextContent(/Simulated/);
+    await waitFor(() => expect(screen.getByRole("region", { name: "Asked in Microsoft Teams" })).toHaveTextContent("Review PR 42."));
+    expect(screen.queryByRole("complementary", { name: "Talk track" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
+    expect(screen.getByRole("complementary", { name: "Talk track" })).toHaveTextContent("Merge is refused.");
+    expect(screen.getByRole("note")).toBeInTheDocument(); // still shown in presenter mode
+    fireEvent.change(screen.getByLabelText("Channel"), { target: { value: "hr-chatbot" } });
+    expect(screen.getByRole("region", { name: "Asked in HR chatbot (existing site)" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() => expect(screen.getByText("aaa.bbb.ccc")).toBeInTheDocument(), { timeout: 3000 });
+    expect(screen.getByText(/mock-issued/)).toBeInTheDocument();
+  });
+});

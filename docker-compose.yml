@@ -1,0 +1,28 @@
+# OrbStack:  HOST_PORT=6700 docker compose up --build -d   ->  http://127.0.0.1:6700
+# The server binds 0.0.0.0 INSIDE the container (WORKER_BIND_ALL is the opt-in), but the port is published on loopback only.
+# Do not change the 127.0.0.1 below. HOST_PORT must stay in 6700-6849.
+# The Privilege demo runs on the host; the container reaches it by name, and only that name (plus the stub issuer's) is allowed out.
+name: worker-demo
+
+services:
+  worker-demo:
+    build: .
+    ports:
+      - "127.0.0.1:${HOST_PORT:-6700}:6700"
+    environment:
+      PORT: "6700"
+      WORKER_BIND_ALL: "1"
+      HOST: 0.0.0.0
+      PEP_URL: http://host.docker.internal:4510/mcp
+      MINT_URL: http://host.docker.internal:9031/mint
+      ALLOWED_HOSTS: host.docker.internal
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:6700/api/health').then(r=>r.json()).then(j=>process.exit(j.schema==='demo-health/1'&&j.state==='ready'?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      start_period: 5s
+      start_interval: 2s
+      timeout: 5s
+      retries: 3

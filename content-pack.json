@@ -1,0 +1,148 @@
+{
+  "schema": "demo-content-pack/1",
+  "id": "worker-demo",
+  "title": "Worker Agent Demo",
+  "version": "0.2.0",
+  "demo": {
+    "id": "worker-demo",
+    "name": "Worker Agent Demo",
+    "catalog": "D22",
+    "baseUrl": "http://127.0.0.1:6700",
+    "doctor": "/api/health",
+    "tags": [
+      "worker-agent",
+      "delegation",
+      "unattended",
+      "policy-enforcement",
+      "mock"
+    ]
+  },
+  "glossary": [
+    {
+      "id": "worker-agent",
+      "term": "Worker agent",
+      "definition": "An agent that acts for a signed-in person. The token has sub = the person and act = the agent, so both are in the audit trail."
+    },
+    {
+      "id": "act-claim",
+      "term": "act claim",
+      "definition": "The RFC 8693 actor claim: who is acting on the subject's behalf. Each delegated hop here gets its own token with its own act and a narrower scope.",
+      "aliases": [
+        "actor claim"
+      ]
+    },
+    {
+      "id": "pep",
+      "term": "Policy enforcement point",
+      "definition": "Every tool call goes through one point that allows it, denies it, or holds it for a person to approve. Here that is the Privilege demo.",
+      "aliases": [
+        "PEP"
+      ]
+    },
+    {
+      "id": "unattended",
+      "term": "Unattended run",
+      "definition": "A run that starts with no person in the session. It only runs while armed (an hour), and a write above its remit parks for a human."
+    },
+    {
+      "id": "kill-switch",
+      "term": "Kill switch",
+      "definition": "Disarms the unattended lane and cancels every run still waiting on a person, so nothing resumes later."
+    }
+  ],
+  "sources": [
+    {
+      "id": "rfc8693",
+      "title": "RFC 8693: OAuth 2.0 Token Exchange",
+      "url": "https://www.rfc-editor.org/rfc/rfc8693",
+      "kind": "standard",
+      "use": "The act (actor) claim and delegation semantics",
+      "status": "not-read",
+      "checked": "2026-10-21"
+    }
+  ],
+  "stories": [
+    {
+      "id": "S01",
+      "title": "Code and architecture review",
+      "say": "A signed-in engineer asks the agent to review a pull request. It reads, comments, then tries to merge."
+    },
+    {
+      "id": "S02",
+      "title": "Sprint planning and story writing",
+      "say": "A business analyst asks for a draft story, then for an update to an existing one."
+    },
+    {
+      "id": "S03",
+      "title": "Compliance evidence collection",
+      "say": "A compliance officer asks for CIP-010 evidence. The collector delegates to one agent per source, each with narrower access. One agent then reaches outside its remit."
+    },
+    {
+      "id": "S04",
+      "title": "Quarterly evidence sweep (unattended)",
+      "say": "A schedule fires the sweep with nobody signed in. Reads run; the requirement update waits for a human."
+    }
+  ],
+  "cards": [
+    {
+      "id": "try-code-review",
+      "label": "Code and architecture review",
+      "description": "A signed-in engineer asks the agent to review a pull request. It reads, comments, then tries to merge.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#scenario-code-review"
+      },
+      "story": "S01",
+      "terms": [
+        "worker-agent",
+        "pep"
+      ]
+    },
+    {
+      "id": "try-sprint-planning",
+      "label": "Sprint planning and story writing",
+      "description": "A business analyst asks for a draft story, then for an update to an existing one.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#scenario-sprint-planning"
+      },
+      "story": "S02",
+      "terms": [
+        "worker-agent",
+        "pep"
+      ]
+    },
+    {
+      "id": "try-compliance-evidence",
+      "label": "Compliance evidence collection",
+      "description": "A compliance officer asks for CIP-010 evidence. The collector delegates to one agent per source, each with narrower access. One agent then reaches outside its remit.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#scenario-compliance-evidence"
+      },
+      "story": "S03",
+      "terms": [
+        "act-claim",
+        "pep"
+      ]
+    },
+    {
+      "id": "try-evidence-sweep",
+      "label": "Quarterly evidence sweep (unattended)",
+      "description": "A schedule fires the sweep with nobody signed in. Reads run; the requirement update waits for a human.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#scenario-evidence-sweep"
+      },
+      "story": "S04",
+      "terms": [
+        "unattended",
+        "kill-switch"
+      ]
+    }
+  ]
+}

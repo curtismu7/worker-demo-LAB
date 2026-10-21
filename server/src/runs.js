@@ -29,7 +29,12 @@ export function createRunner({ cfg, fetchImpl = fetch, now = () => new Date() })
 
   const tokenFor = (ctx, persona, agent, scope, extra = {}) => {
     const key = `${persona}|${agent}|${scope ?? ''}`;
-    if (!ctx.tokens.has(key)) ctx.tokens.set(key, mintToken({ mintUrl: cfg.mintUrl, persona, act: agent, scope, fetchImpl, ...extra }));
+    if (!ctx.tokens.has(key)) {
+      const p = mintToken({ mintUrl: cfg.mintUrl, persona, act: agent, scope, fetchImpl, ...extra });
+      ctx.tokens.set(key, p);
+      // Rule 4: this is education, so the raw mock-issued token is shown, labelled. It is from the stub issuer, not PingFederate.
+      p.then((jwt) => ctx.run?.tokens.push({ agent, scope: scope ?? null, mock: true, issuer: 'stub issuer (not PingFederate)', jwt, claims: claimSummary(jwt) }), () => {});
+    }
     return ctx.tokens.get(key);
   };
 
@@ -52,8 +57,8 @@ export function createRunner({ cfg, fetchImpl = fetch, now = () => new Date() })
     const sc = SCENARIOS[scenario];
     if (!sc) throw Object.assign(new Error('unknown scenario'), { code: 'unknown_scenario' });
     if (sc.lane === 'unattended' && !isArmed()) throw Object.assign(new Error('Unattended runs are disarmed. Arm them first.'), { code: 'disarmed' });
-    const run = { id: randomUUID(), scenario, lane: sc.lane, persona, unattended: sc.lane === 'unattended', startedAt: now().toISOString(), status: 'running', claims: null, parkedAt: null, steps: [] };
-    const ctx = { tokens: new Map(), tp: undefined };
+    const run = { id: randomUUID(), scenario, lane: sc.lane, persona, unattended: sc.lane === 'unattended', startedAt: now().toISOString(), status: 'running', claims: null, parkedAt: null, tokens: [], steps: [] };
+    const ctx = { tokens: new Map(), tp: undefined, run };
     run.claims = claimSummary(await tokenFor(ctx, persona, sc.steps[0].agent ?? AGENT_SUB, sc.steps[0].scope));
     runs.set(run.id, run); ctxs.set(run.id, ctx);
     await execute(run, ctx, 0);
@@ -91,5 +96,8 @@ export function createRunner({ cfg, fetchImpl = fetch, now = () => new Date() })
     return run;
   }
 
-  return { start, resolve, kill, arm, armStatus: status, get: (id) => runs.get(id) ?? null, list: () => [...runs.values()].reverse() };
+  // Reset: forget every run and disarm. The same state a fresh start has.
+  function reset() { armedUntil = 0; runs.clear(); ctxs.clear(); return { reset: true }; }
+
+  return { start, resolve, kill, reset, arm, armStatus: status, get: (id) => runs.get(id) ?? null, list: () => [...runs.values()].reverse() };
 }

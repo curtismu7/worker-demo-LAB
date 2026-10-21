@@ -1,6 +1,6 @@
 {
   "name": "worker-demo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Worker agent demo: attended, delegated (A2A) and unattended agent runs, every tool call governed by the Privilege demo's policy enforcement point",
@@ -15,9 +15,14 @@
   "scripts": {
     "dev": "npm run dev -w server & npm run dev -w web",
     "start": "npm start -w server",
-    "test": "npm test -w server && npm test -w web",
+    "test": "npm test -w server && npm test -w web && node --test scripts/*.test.mjs",
     "doctor": "node scripts/doctor.mjs",
     "prepare": "git config core.hooksPath .githooks || true",
-    "build": "npm run build -w web"
+    "build": "npm run build -w web",
+    "reset": "node scripts/reset.mjs",
+    "pack": "node scripts/build-content-pack.mjs && node scripts/validate-content-pack.mjs"
+  },
+  "devDependencies": {
+    "ajv": "^8.20.0"
   }
 }

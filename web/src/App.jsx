@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import FlowDiagram from "./FlowDiagram.jsx";
-import { getArm, getPersonas, getRun, getScenarios, kill, resolveRun, setArm, startRun } from "./api.js";
+import ChannelFrame from "./ChannelFrame.jsx";
+import TokenPanel from "./TokenPanel.jsx";
+import { getArm, getChannels, getCustomer, getPersonas, getRun, getScenarios, kill, resetServer, resolveRun, setArm, startRun } from "./api.js";
 
 const SPEEDS = [0.5, 1, 2, 4];
 const LANES = { attended: "Attended", delegated: "Delegated (agent to agent)", unattended: "Unattended" };
@@ -19,6 +21,10 @@ export default function App() {
   const [error, setError] = useState("");
   const [resetKey, setResetKey] = useState(0);
   const [approver, setApprover] = useState("");
+  const [channels, setChannels] = useState([]);
+  const [channelId, setChannelId] = useState("");
+  const [customer, setCustomer] = useState({ brand: { name: "Worker agent demo" }, vocabulary: { person: "Person", agent: "Agent" } });
+  const [presenter, setPresenter] = useState(false);
   const [arm, setArmState] = useState({ armed: false, expiresAt: null });
   const timer = useRef(null);
 
@@ -28,6 +34,7 @@ export default function App() {
       setScenarioId(s.scenarios[0]?.id ?? ""); setPersona(p.personas[0] ?? "");
     }).catch((e) => setError(e.message));
     getArm().then(setArmState).catch(() => {});
+    Promise.all([getChannels(), getCustomer()]).then(([c, cu]) => { setChannels(Array.isArray(c?.channels) ? c.channels : []); if (cu?.brand?.name) setCustomer(cu); setChannelId(cu?.defaultChannel ?? ""); }).catch(() => {});
     return () => clearTimeout(timer.current);
   }, []);
 
@@ -56,15 +63,17 @@ export default function App() {
     } catch (e) { setError(e.message); }
   }
   const onSimulate = () => run && play(run.steps.length);
-  const onReset = () => { clearTimeout(timer.current); setRun(null); setShown(0); setError(""); setResetKey((k) => k + 1); };
+  const onReset = () => { resetServer().catch(() => {}); clearTimeout(timer.current); setRun(null); setShown(0); setError(""); setResetKey((k) => k + 1); };
   const sc = scenarios.find((s) => s.id === scenarioId);
+  const channel = channels.find((c) => c.id === channelId) ?? channels[0];
   const needsArm = sc?.lane === "unattended";
   const onArm = () => setArm(!arm.armed).then(setArmState).catch((e) => setError(e.message));
 
   return (
-    <main className="page">
+    <main className={`page${presenter ? " presenter" : ""}`}>
+      <p className="sim-banner" role="note"><strong>Simulated.</strong> GitHub, CloudWatch, the knowledge base and the backlog are mocks. Tokens come from a local stub issuer, not PingFederate. Policy decisions come from the local Privilege demo.</p>
       <header>
-        <h1>Worker agent demo</h1>
+        <h1>{customer.brand.name}</h1>
         <p className="lede">An agent acts for a signed-in person. Every tool call it makes goes through the Privilege policy enforcement point, which allows it, denies it, or holds it for a human. <strong>Mock mode:</strong> GitHub, the knowledge base and the backlog are simulated.</p>
       </header>
 
@@ -79,15 +88,26 @@ export default function App() {
         <label>Signed in as
           <select value={persona} onChange={(e) => setPersona(e.target.value)}>{personas.map((p) => <option key={p}>{p}</option>)}</select>
         </label>
+        <label>Channel
+          <select value={channelId} onChange={(e) => setChannelId(e.target.value)}>{channels.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+        </label>
         <label>Speed
           <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>{SPEEDS.map((s) => <option key={s} value={s}>{s}x</option>)}</select>
         </label>
         <button className="primary" onClick={onRun} disabled={busy || !scenarioId || !persona || (needsArm && !arm.armed)}>{busy ? "Running…" : "Run"}</button>
         <button onClick={onSimulate} disabled={!run}>Simulate again</button>
         <button onClick={onReset}>Reset</button>
+        <button aria-pressed={presenter} onClick={() => setPresenter((p) => !p)}>Presenter</button>
         <button className="danger" onClick={onKill}>Kill switch</button>
       </section>
       {sc && <p className="blurb">{sc.blurb}</p>}
+      <ChannelFrame channel={channel} prompt={sc?.prompt} person={run?.claims?.sub ?? persona} />
+      {presenter && sc?.talk?.length > 0 && (
+        <aside className="talk" aria-label="Talk track">
+          <h2>Talk track</h2>
+          <ul>{sc.talk.map((t, i) => <li key={i}>{t}</li>)}</ul>
+        </aside>
+      )}
       {needsArm && (
         <p className="arm">
           <button role="switch" aria-checked={arm.armed} onClick={onArm}>{arm.armed ? "Armed" : "Disarmed"}</button>{" "}
@@ -127,6 +147,7 @@ export default function App() {
           </ol>
         </section>
       )}
+      {run && <TokenPanel tokens={run.tokens} />}
     </main>
   );
 }

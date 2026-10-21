@@ -1,0 +1,6 @@
+{
+  "brand": { "name": "Acme Power Worker Agent Demo" },
+  "vertical": "utility",
+  "defaultChannel": "teams",
+  "vocabulary": { "person": "Engineer", "agent": "Delivery agent" }
+}

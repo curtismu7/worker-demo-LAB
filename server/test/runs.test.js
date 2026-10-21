@@ -68,12 +68,22 @@ describe('runs', () => {
     expect(res.body.steps[1]).toMatchObject({ outcome: 'hold', approvalId: 'A1' });
   });
 
-  it('never puts the token in a response', async () => {
+  it('shows the mock-issued run tokens, labelled (rule 4), and sends only them to the PEP', async () => {
     const f = fakeFetch();
     const res = await request(app(f)).post('/api/runs').send({ scenario: 'code-review', persona: 'priya' });
-    expect([...f.minted].some((t) => JSON.stringify(res.body).includes(t))).toBe(false);
-    expect(f.seen.length).toBeGreaterThan(0);
-    expect(f.seen.every((s) => f.minted.has(s.auth.replace('Bearer ', '')))).toBe(true);
+    expect(res.body.tokens).toHaveLength(1);
+    expect(res.body.tokens[0]).toMatchObject({ mock: true, issuer: 'stub issuer (not PingFederate)', agent: 'worker-agent' });
+    expect(res.body.tokens[0].jwt.split('.')).toHaveLength(3);
+    expect(f.seen.every((s) => s.auth === `Bearer ${res.body.tokens[0].jwt}`)).toBe(true);
+  });
+
+  it('never shows the approver token (it is not part of the run)', async () => {
+    const f = fakeFetch();
+    const a = app(f);
+    const run = (await request(a).post('/api/runs').send({ scenario: 'sprint-planning', persona: 'mark' })).body;
+    const done = (await request(a).post(`/api/runs/${run.id}/resolve`).send({ decision: 'approve', approver: 'priya' })).body;
+    const shown = new Set(done.tokens.map((t) => t.jwt));
+    expect([...f.minted].filter((t) => !shown.has(t))).toHaveLength(1); // exactly the approver's token stays hidden
   });
 
   it('reports an unreachable stack as 502, not a crash', async () => {
