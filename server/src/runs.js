@@ -1,49 +1,95 @@
 import { randomUUID } from 'node:crypto';
 import { callTool } from './pep.js';
+import { decideApproval } from './approvals.js';
 import { mintToken, claimSummary } from './tokens.js';
 import { SCENARIOS } from './scenarios.js';
 
 export const AGENT_SUB = 'worker-agent';
 export const ARM_TTL_MS = 60 * 60 * 1000;
 
-// Runs a scenario's steps in order under one token. A deny does not stop the run (the agent reports it and moves on);
-// a hold parks the run, since nothing after it should happen before a person answers; an error stops it.
+// Runs a scenario's steps in order. A deny does not stop the run (the agent reports it and moves on); a hold parks the run,
+// since nothing after it should happen before a person answers; an error stops it. A parked run is finished by resolve().
 export function createRunner({ cfg, fetchImpl = fetch, now = () => new Date() }) {
   const runs = new Map();
+  const ctxs = new Map(); // runId -> { tokens, tp }. Server-side only: tokens never reach a response.
+
   // Arm switch for the unattended lane: off by default, expires on its own (like AI-DEMO2's autonomous flag).
   let armedUntil = 0;
   const isArmed = () => armedUntil > now().getTime();
-  const arm = (on) => { armedUntil = on ? now().getTime() + ARM_TTL_MS : 0; return status(); };
   const status = () => ({ armed: isArmed(), expiresAt: isArmed() ? new Date(armedUntil).toISOString() : null });
+  const arm = (on) => { armedUntil = on ? now().getTime() + ARM_TTL_MS : 0; return status(); };
+
+  // Kill switch: disarm, and cancel every run still waiting on a human so nothing resumes later.
+  function kill() {
+    armedUntil = 0;
+    let cancelled = 0;
+    for (const r of runs.values()) if (r.status === 'parked') { r.status = 'cancelled'; r.parkedAt = null; cancelled++; ctxs.delete(r.id); }
+    return { ...status(), cancelled };
+  }
+
+  const tokenFor = (ctx, persona, agent, scope, extra = {}) => {
+    const key = `${persona}|${agent}|${scope ?? ''}`;
+    if (!ctx.tokens.has(key)) ctx.tokens.set(key, mintToken({ mintUrl: cfg.mintUrl, persona, act: agent, scope, fetchImpl, ...extra }));
+    return ctx.tokens.get(key);
+  };
+
+  async function execute(run, ctx, from) {
+    const sc = SCENARIOS[run.scenario];
+    run.status = 'running';
+    for (let i = from; i < sc.steps.length; i++) {
+      const s = sc.steps[i];
+      const agent = s.agent ?? AGENT_SUB;
+      const out = await callTool({ url: cfg.pepUrl, token: await tokenFor(ctx, run.persona, agent, s.scope), name: s.tool, args: s.args, id: i + 1, traceparent: ctx.tp, fetchImpl });
+      ctx.tp = out.traceparent ?? ctx.tp;
+      run.steps.push({ index: i, agent, scope: s.scope ?? null, tool: s.tool, args: s.args, note: s.note, expected: s.expect, ...out, asDesigned: out.outcome === s.expect });
+      if (out.outcome === 'hold') { run.status = 'parked'; run.parkedAt = i; return; }
+      if (out.outcome === 'error') { run.status = 'failed'; return; }
+    }
+    run.status = 'done';
+  }
 
   async function start({ scenario, persona }) {
     const sc = SCENARIOS[scenario];
     if (!sc) throw Object.assign(new Error('unknown scenario'), { code: 'unknown_scenario' });
     if (sc.lane === 'unattended' && !isArmed()) throw Object.assign(new Error('Unattended runs are disarmed. Arm them first.'), { code: 'disarmed' });
-    const run = { id: randomUUID(), scenario, lane: sc.lane, persona, unattended: sc.lane === 'unattended', startedAt: now().toISOString(), status: 'running', claims: null, steps: [] };
-    // One token per (agent, scope): each delegated hop is its own, narrower identity. Tokens never leave this function.
-    const tokens = new Map();
-    const tokenFor = async (agent, scope) => {
-      const key = `${agent}|${scope ?? ''}`;
-      if (!tokens.has(key)) tokens.set(key, await mintToken({ mintUrl: cfg.mintUrl, persona, act: agent, scope, fetchImpl }));
-      return tokens.get(key);
-    };
-    const first = await tokenFor(sc.steps[0].agent ?? AGENT_SUB, sc.steps[0].scope);
-    run.claims = claimSummary(first);
-    runs.set(run.id, run);
-    let tp;
-    for (const [i, s] of sc.steps.entries()) {
-      const agent = s.agent ?? AGENT_SUB;
-      const token = await tokenFor(agent, s.scope);
-      const out = await callTool({ url: cfg.pepUrl, token, name: s.tool, args: s.args, id: i + 1, traceparent: tp, fetchImpl });
-      tp = out.traceparent ?? tp;
-      run.steps.push({ agent, scope: s.scope ?? null, tool: s.tool, args: s.args, note: s.note, expected: s.expect, ...out, asDesigned: out.outcome === s.expect });
-      if (out.outcome === 'hold') { run.status = 'parked'; break; }
-      if (out.outcome === 'error') { run.status = 'failed'; break; }
-    }
-    if (run.status === 'running') run.status = 'done';
+    const run = { id: randomUUID(), scenario, lane: sc.lane, persona, unattended: sc.lane === 'unattended', startedAt: now().toISOString(), status: 'running', claims: null, parkedAt: null, steps: [] };
+    const ctx = { tokens: new Map(), tp: undefined };
+    run.claims = claimSummary(await tokenFor(ctx, persona, sc.steps[0].agent ?? AGENT_SUB, sc.steps[0].scope));
+    runs.set(run.id, run); ctxs.set(run.id, ctx);
+    await execute(run, ctx, 0);
     return run;
   }
 
-  return { start, arm, armStatus: status, get: (id) => runs.get(id) ?? null, list: () => [...runs.values()].reverse() };
+  // Finish a parked run. approve/deny go to the Privilege demo's approvals API as the approver (never as the run's own person: the
+  // PEP refuses self-approval). 'expire' just stops waiting here; it does not touch the PEP's record, which lapses on its own TTL.
+  async function resolve(id, { decision, approver = 'priya' }) {
+    const run = runs.get(id);
+    if (!run) throw Object.assign(new Error('not found'), { code: 'not_found' });
+    if (run.status !== 'parked') throw Object.assign(new Error(`Run is ${run.status}, not waiting for approval.`), { code: 'not_parked' });
+    const held = run.steps[run.steps.length - 1];
+    const ctx = ctxs.get(id);
+    if (decision === 'expire') { run.status = 'expired'; run.parkedAt = null; ctxs.delete(id); return run; }
+    if (decision !== 'approve' && decision !== 'deny') throw Object.assign(new Error('decision must be approve, deny or expire'), { code: 'bad_decision' });
+
+    const approverToken = await mintToken({ mintUrl: cfg.mintUrl, persona: approver, fetchImpl });
+    const res = await decideApproval({ pepUrl: cfg.pepUrl, token: approverToken, approvalId: held.approvalId, verb: decision, fetchImpl });
+    if (!res.ok) throw Object.assign(new Error(res.reason), { code: res.error });
+    held.resolution = { decision, by: approver };
+    if (decision === 'deny') { run.status = 'denied'; run.parkedAt = null; ctxs.delete(id); return run; }
+
+    // Approved: the agent retries the held call, then carries on with the rest of the plan.
+    const sc = SCENARIOS[run.scenario];
+    const s = sc.steps[held.index];
+    const agent = s.agent ?? AGENT_SUB;
+    const out = await callTool({ url: cfg.pepUrl, token: await tokenFor(ctx, run.persona, agent, s.scope), name: s.tool, args: s.args, id: 100 + held.index, traceparent: ctx.tp, fetchImpl });
+    ctx.tp = out.traceparent ?? ctx.tp;
+    run.steps.push({ index: held.index, retry: true, agent, scope: s.scope ?? null, tool: s.tool, args: s.args, note: 'Retried after approval.', expected: 'allow', ...out, asDesigned: out.outcome === 'allow' });
+    run.parkedAt = null;
+    if (out.outcome === 'hold') { run.status = 'parked'; run.parkedAt = held.index; return run; }
+    if (out.outcome === 'error') { run.status = 'failed'; return run; }
+    await execute(run, ctx, held.index + 1);
+    return run;
+  }
+
+  return { start, resolve, kill, arm, armStatus: status, get: (id) => runs.get(id) ?? null, list: () => [...runs.values()].reverse() };
 }

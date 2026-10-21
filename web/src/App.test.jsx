@@ -72,3 +72,23 @@ describe("unattended lane", () => {
     expect(screen.getByRole("button", { name: "Run" })).toBeEnabled();
   });
 });
+
+describe("parked run", () => {
+  const PARKED = { id: "r1", status: "parked", persona: "mark", unattended: false, claims: { sub: "mark", act: "worker-agent", groups: [] },
+    steps: [{ index: 0, tool: "backlog.update_story", outcome: "hold", expected: "hold", asDesigned: true, approvalId: "A1", approvers: ["priya"], note: "n" }] };
+  it("shows the approval card, approves as the chosen approver and shows the retry", async () => {
+    const posts = [];
+    globalThis.fetch = vi.fn(async (url, init) => {
+      if (init?.method === "POST" && url.includes("/resolve")) { posts.push(JSON.parse(init.body)); return { ok: true, status: 200, json: async () => ({ ...PARKED, status: "done", steps: [...PARKED.steps, { index: 0, retry: true, tool: "backlog.update_story", outcome: "allow", expected: "allow", asDesigned: true, note: "r" }] }) }; }
+      return { ok: true, status: 200, json: async () => (url === "/api/scenarios" ? { scenarios: [{ id: "s", title: "S", blurb: "", lane: "attended", stepCount: 1 }] } : url === "/api/personas" ? { personas: ["mark", "priya"] } : url === "/api/arm" ? { armed: false } : PARKED) };
+    });
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Run" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() => expect(screen.getByRole("group", { name: "Approval needed" })).toBeInTheDocument(), { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(screen.getByText(/Retried: Allowed/)).toBeInTheDocument(), { timeout: 3000 });
+    expect(posts).toEqual([{ decision: "approve", approver: "priya" }]);
+    expect(screen.queryByRole("group", { name: "Approval needed" })).not.toBeInTheDocument();
+  });
+});

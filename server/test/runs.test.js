@@ -4,30 +4,46 @@ import { createApp } from '../src/app.js';
 import { config } from '../src/config.js';
 
 const jwt = (c) => `h.${Buffer.from(JSON.stringify(c)).toString('base64url')}.s`;
-const TOKEN = jwt({ sub: 'priya', groups: ['governance-reviewers'], aud: 'pep', exp: 9999999999, act: { sub: 'worker-agent' } });
+const subOf = (auth) => JSON.parse(Buffer.from(auth.replace('Bearer ', '').split('.')[1], 'base64url').toString()).sub;
 
-// Fake Privilege demo: decides by tool name the way the shipped policies are specced.
+// Fake Privilege demo: decides by tool name the way the shipped policies are specced, and runs a tiny approvals API.
 function fakeFetch({ down = false } = {}) {
   const seen = [];
+  const minted = new Set();
+  const approved = new Set();
+  const calls = [];
   const fn = async (url, init) => {
     if (down) throw new Error('ECONNREFUSED');
-    const b = JSON.parse(init.body);
-    if (url.endsWith('/mint')) return { ok: true, status: 200, json: async () => ({ access_token: TOKEN }) };
+    const u = String(url);
+    const b = JSON.parse(init.body || '{}');
+    if (u.endsWith('/mint')) {
+      const t = jwt({ sub: b.persona, groups: ['governance-reviewers'], aud: 'pep', exp: 9999999999, ...(b.act ? { act: { sub: b.act } } : {}), n: minted.size });
+      minted.add(t);
+      return { ok: true, status: 200, json: async () => ({ access_token: t }) };
+    }
+    const m = u.match(/\/api\/approvals\/([\w-]+)\/(approve|deny)$/);
+    if (m) {
+      calls.push({ id: m[1], verb: m[2], by: subOf(init.headers.authorization) });
+      if (subOf(init.headers.authorization) === 'mary' || subOf(init.headers.authorization) === 'eli') return { ok: false, status: 403, json: async () => ({ error: 'not_an_approver' }) };
+      if (m[2] === 'approve') approved.add(m[1]);
+      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    }
     seen.push({ auth: init.headers.authorization, name: b.params.name });
     const t = b.params.name;
+    const heldTool = t === 'backlog.update_story' || t === 'confluence.update_requirement';
     const reply = t === 'github.merge_pr' ? { error: { code: -32003, message: 'denied by policy', data: { rule: 'forbid-merge', reason: 'no merge authority' } } }
-      : (t === 'backlog.update_story' || t === 'confluence.update_requirement') ? { error: { code: -32004, message: 'held for approval', data: { rule: 'hold-update', approvalId: 'A1', approvers: ['priya'] } } }
+      : heldTool && !approved.has('A1') ? { error: { code: -32004, message: 'held for approval', data: { rule: 'hold-update', approvalId: 'A1', approvers: ['priya'] } } }
         : { result: { content: [{ type: 'text', text: JSON.stringify({ ok: t }) }] } };
     return { status: 200, headers: { get: () => '00-trace-span-01' }, json: async () => ({ jsonrpc: '2.0', id: b.id, ...reply }) };
   };
-  fn.seen = seen;
+  Object.assign(fn, { seen, minted, calls });
   return fn;
 }
 // Records the (act, scope) each mint asked for, to prove every delegated hop gets its own narrower token.
 function mintLog() {
   const mints = [];
   const base = fakeFetch();
-  const fn = async (url, init) => { if (url.endsWith('/mint')) mints.push(JSON.parse(init.body)); return base(url, init); };
+  const fn = async (url, init) => { if (String(url).endsWith('/mint')) mints.push(JSON.parse(init.body)); return base(url, init); };
   fn.mints = mints;
   return fn;
 }
@@ -55,8 +71,9 @@ describe('runs', () => {
   it('never puts the token in a response', async () => {
     const f = fakeFetch();
     const res = await request(app(f)).post('/api/runs').send({ scenario: 'code-review', persona: 'priya' });
-    expect(JSON.stringify(res.body)).not.toContain(TOKEN);
-    expect(f.seen.every((s) => s.auth === `Bearer ${TOKEN}`)).toBe(true);
+    expect([...f.minted].some((t) => JSON.stringify(res.body).includes(t))).toBe(false);
+    expect(f.seen.length).toBeGreaterThan(0);
+    expect(f.seen.every((s) => f.minted.has(s.auth.replace('Bearer ', '')))).toBe(true);
   });
 
   it('reports an unreachable stack as 502, not a crash', async () => {
@@ -105,5 +122,72 @@ describe('unattended lane', () => {
     expect((await request(a).get('/api/arm')).body.armed).toBe(true);
     t += 61 * 60 * 1000;
     expect((await request(a).get('/api/arm')).body.armed).toBe(false);
+  });
+});
+
+describe('parked runs: approve, deny, expire, kill', () => {
+  const park = async (a, persona = 'eli', scenario = 'sprint-planning') => (await request(a).post('/api/runs').send({ scenario, persona })).body;
+
+  it('approve: the approver decides, the agent retries the held call and the run finishes', async () => {
+    const f = fakeFetch();
+    const a = app(f);
+    const run = await park(a, 'mark');
+    expect(run.status).toBe('parked');
+    const res = await request(a).post(`/api/runs/${run.id}/resolve`).send({ decision: 'approve', approver: 'priya' });
+    expect(res.status).toBe(200);
+    expect(f.calls).toEqual([{ id: 'A1', verb: 'approve', by: 'priya' }]);
+    expect(res.body.status).toBe('done');
+    const last = res.body.steps.at(-1);
+    expect(last).toMatchObject({ retry: true, outcome: 'allow', tool: 'backlog.update_story' });
+    expect(res.body.steps.find((s) => s.outcome === 'hold').resolution).toEqual({ decision: 'approve', by: 'priya' });
+  });
+
+  it('deny: nothing is retried', async () => {
+    const f = fakeFetch();
+    const a = app(f);
+    const run = await park(a, 'mark');
+    const res = await request(a).post(`/api/runs/${run.id}/resolve`).send({ decision: 'deny' });
+    expect(res.body.status).toBe('denied');
+    expect(res.body.steps).toHaveLength(2);
+    expect(f.calls[0]).toMatchObject({ verb: 'deny', by: 'priya' });
+  });
+
+  it('expire: stops waiting and never calls the approvals API', async () => {
+    const f = fakeFetch();
+    const a = app(f);
+    const run = await park(a, 'mark');
+    const res = await request(a).post(`/api/runs/${run.id}/resolve`).send({ decision: 'expire' });
+    expect(res.body.status).toBe('expired');
+    expect(f.calls).toEqual([]);
+  });
+
+  it('refuses a non-approver and leaves the run parked', async () => {
+    const a = app(fakeFetch());
+    const run = await park(a, 'mark');
+    const res = await request(a).post(`/api/runs/${run.id}/resolve`).send({ decision: 'approve', approver: 'mary' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('not_an_approver');
+    expect((await request(a).get(`/api/runs/${run.id}`)).body.status).toBe('parked');
+  });
+
+  it('rejects bad input and a run that is not parked', async () => {
+    const a = app(fakeFetch());
+    const run = await park(a, 'mark');
+    expect((await request(a).post(`/api/runs/${run.id}/resolve`).send({ decision: 'maybe' })).status).toBe(400);
+    expect((await request(a).post('/api/runs/none/resolve').send({ decision: 'approve' })).status).toBe(404);
+    await request(a).post(`/api/runs/${run.id}/resolve`).send({ decision: 'deny' });
+    expect((await request(a).post(`/api/runs/${run.id}/resolve`).send({ decision: 'approve' })).status).toBe(409);
+  });
+
+  it('kill switch disarms and cancels parked runs so they cannot resume', async () => {
+    const a = app(fakeFetch());
+    await request(a).post('/api/arm').send({ armed: true });
+    const run = await park(a, 'mark', 'evidence-sweep');
+    expect(run.status).toBe('parked');
+    const k = await request(a).post('/api/kill').send({});
+    expect(k.body).toMatchObject({ armed: false, cancelled: 1 });
+    expect((await request(a).get(`/api/runs/${run.id}`)).body.status).toBe('cancelled');
+    expect((await request(a).post(`/api/runs/${run.id}/resolve`).send({ decision: 'approve' })).status).toBe(409);
+    expect((await request(a).post('/api/runs').send({ scenario: 'evidence-sweep', persona: 'mark' })).status).toBe(403);
   });
 });
