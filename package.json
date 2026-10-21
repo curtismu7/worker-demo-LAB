@@ -1,0 +1,21 @@
+{
+  "name": "worker-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Worker agent demo: attended, delegated (A2A) and unattended agent runs, every tool call governed by the Privilege demo's policy enforcement point",
+  "license": "UNLICENSED",
+  "workspaces": [
+    "server"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "npm run dev -w server",
+    "start": "npm start -w server",
+    "test": "npm test -w server",
+    "doctor": "node scripts/doctor.mjs",
+    "prepare": "git config core.hooksPath .githooks || true"
+  }
+}

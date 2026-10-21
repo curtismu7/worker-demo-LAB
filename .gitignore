@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.bak.*
+.data/
+*.log
+.DS_Store
+e2e-output/
