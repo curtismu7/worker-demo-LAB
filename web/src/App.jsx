@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import FlowDiagram from "./FlowDiagram.jsx";
-import { getPersonas, getScenarios, startRun } from "./api.js";
+import { getArm, getPersonas, getScenarios, setArm, startRun } from "./api.js";
 
 const SPEEDS = [0.5, 1, 2, 4];
+const LANES = { attended: "Attended", delegated: "Delegated (agent to agent)", unattended: "Unattended" };
 const OUTCOME_TEXT = { allow: "Allowed", deny: "Denied", hold: "Held for approval", error: "Error" };
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [resetKey, setResetKey] = useState(0);
+  const [arm, setArmState] = useState({ armed: false, expiresAt: null });
   const timer = useRef(null);
 
   useEffect(() => {
@@ -23,6 +25,7 @@ export default function App() {
       setScenarios(s.scenarios); setPersonas(p.personas);
       setScenarioId(s.scenarios[0]?.id ?? ""); setPersona(p.personas[0] ?? "");
     }).catch((e) => setError(e.message));
+    getArm().then(setArmState).catch(() => {});
     return () => clearTimeout(timer.current);
   }, []);
 
@@ -41,6 +44,8 @@ export default function App() {
   const onSimulate = () => run && play(run.steps.length);
   const onReset = () => { clearTimeout(timer.current); setRun(null); setShown(0); setError(""); setResetKey((k) => k + 1); };
   const sc = scenarios.find((s) => s.id === scenarioId);
+  const needsArm = sc?.lane === "unattended";
+  const onArm = () => setArm(!arm.armed).then(setArmState).catch((e) => setError(e.message));
 
   return (
     <main className="page">
@@ -51,7 +56,11 @@ export default function App() {
 
       <section className="controls" aria-label="Run controls">
         <label>Scenario
-          <select value={scenarioId} onChange={(e) => setScenarioId(e.target.value)}>{scenarios.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}</select>
+          <select value={scenarioId} onChange={(e) => setScenarioId(e.target.value)}>
+            {Object.entries(LANES).map(([lane, name]) => (
+              <optgroup key={lane} label={name}>{scenarios.filter((s) => s.lane === lane).map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}</optgroup>
+            ))}
+          </select>
         </label>
         <label>Signed in as
           <select value={persona} onChange={(e) => setPersona(e.target.value)}>{personas.map((p) => <option key={p}>{p}</option>)}</select>
@@ -59,23 +68,29 @@ export default function App() {
         <label>Speed
           <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>{SPEEDS.map((s) => <option key={s} value={s}>{s}x</option>)}</select>
         </label>
-        <button className="primary" onClick={onRun} disabled={busy || !scenarioId || !persona}>{busy ? "Running…" : "Run"}</button>
+        <button className="primary" onClick={onRun} disabled={busy || !scenarioId || !persona || (needsArm && !arm.armed)}>{busy ? "Running…" : "Run"}</button>
         <button onClick={onSimulate} disabled={!run}>Simulate again</button>
         <button onClick={onReset}>Reset</button>
       </section>
       {sc && <p className="blurb">{sc.blurb}</p>}
+      {needsArm && (
+        <p className="arm">
+          <button role="switch" aria-checked={arm.armed} onClick={onArm}>{arm.armed ? "Armed" : "Disarmed"}</button>{" "}
+          {arm.armed ? `Unattended runs may fire until ${new Date(arm.expiresAt).toLocaleTimeString()} (one hour).` : "Unattended runs are off. Arm them to let the schedule fire without a person."}
+        </p>
+      )}
       {error && <p className="error" role="alert">{error}</p>}
 
-      <FlowDiagram run={run} steps={steps} shown={shown} resetKey={resetKey} />
+      <FlowDiagram key={run?.scenario ?? "none"} run={run} steps={steps} shown={shown} resetKey={resetKey} />
 
       {run && (
         <section aria-label="Run trace">
           <h2>Trace <span className={`status status-${run.status}`}>{run.status}</span></h2>
-          <p className="claims">Token: <code>sub={run.claims?.sub}</code> <code>act={run.claims?.act ?? "none"}</code> <code>groups={(run.claims?.groups ?? []).join(",") || "none"}</code></p>
+          <p className="claims">{run.unattended ? "Unattended: no person in the session. " : ""}Token: <code>sub={run.claims?.sub}</code> <code>act={run.claims?.act ?? "none"}</code> <code>groups={(run.claims?.groups ?? []).join(",") || "none"}</code></p>
           <ol className="steps">
             {steps.slice(0, shown).map((s, i) => (
               <li key={i} className={`step step-${s.outcome}`}>
-                <strong>{OUTCOME_TEXT[s.outcome]}</strong> <code>{s.tool}</code>
+                <strong>{OUTCOME_TEXT[s.outcome]}</strong> <code>{s.tool}</code>{s.agent && <span className="agent"> by {s.agent}{s.scope ? ` (${s.scope})` : ""}</span>}
                 <span className="note">{s.note}</span>
                 {(s.rule || s.reason) && <span className="why">{s.rule}{s.reason ? `: ${s.reason}` : ""}</span>}
                 {s.approvalId && <span className="why">Approval {s.approvalId} waiting on {(s.approvers ?? []).join(", ")}</span>}

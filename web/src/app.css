@@ -27,3 +27,5 @@ button.primary { background: var(--red); border-color: var(--red); color: #fff; 
 .note { color: var(--muted); } .why { flex-basis: 100%; font-size: var(--font-size-sm); color: var(--muted); } .surprise { color: var(--bad); }
 .status { font-size: var(--font-size-sm); padding: 2px 8px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); }
 @media (max-width: 600px) { .controls { flex-direction: column; align-items: stretch; } }
+.node-muted { opacity: 0.6; border-style: dashed; }
+.arm { color: var(--muted); } .agent { color: var(--muted); }

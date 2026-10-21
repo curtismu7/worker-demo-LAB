@@ -11,7 +11,7 @@ const RUN = { status: "done", persona: "priya", claims: { sub: "priya", act: "wo
 function mockApi() {
   globalThis.fetch = vi.fn(async (url) => ({
     ok: true, status: 200,
-    json: async () => (url === "/api/scenarios" ? { scenarios: [{ id: "code-review", title: "Code review", blurb: "b", lane: "attended", stepCount: 2 }] } : url === "/api/personas" ? { personas: ["priya"] } : RUN),
+    json: async () => (url === "/api/scenarios" ? { scenarios: [{ id: "code-review", title: "Code review", blurb: "b", lane: "attended", stepCount: 2 }] } : url === "/api/personas" ? { personas: ["priya"] } : url === "/api/arm" ? { armed: false, expiresAt: null } : RUN),
   }));
 }
 afterEach(() => cleanup());
@@ -45,5 +45,30 @@ describe("buildGraph", () => {
     expect(g.nodes.find((n) => n.id === "t0").className).toContain("node-allow");
     expect(g.nodes.find((n) => n.id === "t1").className).not.toContain("node-deny");
     expect(buildGraph(RUN, RUN.steps, 2).nodes.find((n) => n.id === "t1").className).toContain("node-deny");
+  });
+
+  it("delegated steps add one node per source agent", () => {
+    const steps = [{ agent: "a1", tool: "t.one", outcome: "allow" }, { agent: "a2", tool: "t.two", outcome: "deny" }, { agent: "a1", tool: "t.three", outcome: "allow" }];
+    const ids = buildGraph({ claims: {} }, steps, 3).nodes.map((n) => n.id);
+    expect(ids).toEqual(expect.arrayContaining(["a-a1", "a-a2", "t0", "t1", "t2"]));
+    expect(ids.filter((i) => i.startsWith("a-"))).toHaveLength(2);
+  });
+});
+
+describe("unattended lane", () => {
+  it("cannot run until armed, and the switch arms it", async () => {
+    let armed = false;
+    globalThis.fetch = vi.fn(async (url, init) => ({
+      ok: true, status: 200,
+      json: async () => (url === "/api/scenarios" ? { scenarios: [{ id: "sweep", title: "Sweep", blurb: "b", lane: "unattended", stepCount: 1 }] }
+        : url === "/api/personas" ? { personas: ["priya"] }
+          : url === "/api/arm" ? (init?.method === "POST" ? (armed = JSON.parse(init.body).armed, { armed, expiresAt: new Date(Date.now() + 3600000).toISOString() }) : { armed, expiresAt: null }) : {}),
+    }));
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("switch")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Run" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("switch"));
+    await waitFor(() => expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "true"));
+    expect(screen.getByRole("button", { name: "Run" })).toBeEnabled();
   });
 });
