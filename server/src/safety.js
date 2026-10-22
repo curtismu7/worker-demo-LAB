@@ -26,14 +26,15 @@ export function hostCheck(req, res, next) {
 }
 
 const WRITE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-export function sameOriginWrites(req, res, next) {
+// `extraHost`: the one other host an Origin may name (the hosted build's public host; the ingress rewrites Host to loopback).
+export const sameOriginWrites = (extraHost = '') => (req, res, next) => {
   if (!WRITE.has(req.method)) return next();
   const site = req.headers['sec-fetch-site'];
   if (site && site !== 'same-origin' && site !== 'none') return res.status(403).json({ error: 'cross_origin', message: 'writes must be same-origin' });
   const origin = req.headers.origin;
   if (origin) {
     let ok = false;
-    try { ok = new URL(origin).host === req.headers.host; } catch { /* malformed */ }
+    try { const h = new URL(origin).host.toLowerCase(); ok = h === String(req.headers.host).toLowerCase() || (extraHost !== '' && h === extraHost); } catch { /* malformed */ }
     if (!ok) return res.status(403).json({ error: 'cross_origin', message: 'writes must be same-origin' });
   }
   next();

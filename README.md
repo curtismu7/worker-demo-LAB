@@ -3,7 +3,7 @@
 A standalone SE demo of a worker agent. It runs three ways: attended (a signed-in person asks), delegated (the agent hands work to narrower source agents), and unattended (a schedule, no person present). Every tool call goes through the Privilege demo's policy enforcement point.
 
 **Catalog:** D22 + D23, with a utility skin (NERC CIP style compliance evidence). One of the family of small standalone SE demo repos.
-**Tier:** Demo. **Status:** v0.2.0. Three lanes (attended, delegated, unattended), five scenarios, approvals through the Privilege demo, kill switch, five channel skins, presenter mode with a talk track, `customer.config.json` (see `customer.config.example.json`), Docker, CI, content pack. `npm run smoke` drives every scenario against the real Privilege demo utility pack (14 checks passed on 2026-10-21; CI never runs it, because it needs that stack). Not verified: PingFederate tokens (a stub issuer is used), the customer's real groups, and agent-subject tokens for the unattended lane. Nothing here is a real GitHub, CloudWatch or Confluence connection. See `docs/safety.md` for what is simulated and `docs/talk-track.md` to present it.
+**Tier:** Demo. **Status:** v0.3.0. Three lanes (attended, delegated, unattended with the agent as the token subject), five scenarios, approvals, kill switch, five channel skins, presenter mode with a talk track, `customer.config.json`, per-visitor workspaces, Docker, CI, content pack, and a mock-only SE k8s build (manifests and deploy script; never deployed). Two modes from one image: `MODE=local` (the real Privilege demo and its stub issuer) and `MODE=mock` (everything in-process; the hosted build). `npm run smoke` passes the same 15 checks against both. Not verified: PingFederate tokens (a stub issuer is used), the customer's real groups, and how a real PingFederate issues an agent-subject token. Nothing here is a real GitHub, CloudWatch or Confluence connection. See `docs/safety.md` for what is simulated and `docs/talk-track.md` to present it.
 
 ## Run
 
@@ -20,6 +20,10 @@ Docker (OrbStack): `HOST_PORT=6700 docker compose up --build -d`. The container 
 
 Port range for this repo: 6700-6849.
 
+## No other service needed: MODE=mock
+
+`MODE=mock npm start` runs the whole demo in one process (built-in mock issuer and policy table). Each browser session is its own workspace. This is also what the SE k8s build runs (`k8s/`, `k8s/deploy.sh`; the first deploy is owner-approved).
+
 ## Run against the Privilege demo (utility pack)
 
-In a clone of `cmuir_pingcorp/privilege-demo` (main has the pack): `PACK=utility node stub-issuer/server.mjs` (the local stub issuer, port 9031), then run the app with `PACK=utility IDP=pf PF_URL=http://127.0.0.1:9031 PF_AUDIENCE=privilege-demo` on port 4510 (see that repo's README). Then start this demo and run `npm run smoke`.
+In a clone of `cmuir_pingcorp/privilege-demo` (main has the pack): `PACK=utility node stub-issuer/server.mjs` (the local stub issuer, port 9031; the unattended lane needs the agent-subject mint from privilege-demo PR #3, or main once it merges), then run the app with `PACK=utility IDP=pf PF_URL=http://127.0.0.1:9031 PF_AUDIENCE=privilege-demo` on port 4510 (see that repo's README). Then start this demo (`MODE=local`, the default for `npm start`) and run `npm run smoke`. Run it against `MODE=mock` too.

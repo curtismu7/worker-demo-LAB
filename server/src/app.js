@@ -2,7 +2,8 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
-import { createRunner } from './runs.js';
+import { randomBytes } from 'node:crypto';
+import { createWorkspaces } from './workspaces.js';
 import { listScenarios } from './scenarios.js';
 import { CHANNELS } from './channels.js';
 import { loadCustomer } from './customer.js';
@@ -10,11 +11,11 @@ import { hostCheck, sameOriginWrites } from './safety.js';
 
 export const DEMO = { id: 'worker-demo', name: 'Worker Agent Demo', version: '0.2.0' };
 
-export function createApp({ cfg, now = () => new Date(), fetchImpl = fetch }) {
+export function createApp({ cfg, now = () => new Date(), fetchImpl }) {
   const app = express();
   app.disable('x-powered-by');
   app.use(hostCheck);
-  app.use(sameOriginWrites);
+  app.use(sameOriginWrites(cfg.allowedOriginHost));
   app.use(express.json({ limit: '100kb' }));
   const customer = loadCustomer();
 
@@ -24,22 +25,39 @@ export function createApp({ cfg, now = () => new Date(), fetchImpl = fetch }) {
     res.json({ schema: 'demo-health/1', at: now().toISOString(), state: 'ready', runtime: 'offline', demo: DEMO });
   });
 
-  const runner = createRunner({ cfg, now, fetchImpl });
+  // Rule 13: every request runs in a workspace. Hosted mock mode: one per browser session (a random cookie, nothing personal in it).
+  // Local mode: the single configured workspace. The cookie only selects in-memory state; it grants nothing.
+  const workspaces = createWorkspaces({ cfg, fetchImpl, now });
+  const COOKIE = /(?:^|;\s*)ws=([a-f0-9]{32})(?:;|$)/;
+  app.use('/api', (req, res, next) => {
+    let workspaceId = cfg.workspaceId;
+    if (cfg.mode === 'mock') {
+      workspaceId = COOKIE.exec(req.headers.cookie ?? '')?.[1];
+      if (!workspaceId) {
+        workspaceId = randomBytes(16).toString('hex');
+        res.append('Set-Cookie', `ws=${workspaceId}; HttpOnly; SameSite=Strict; Path=/; Max-Age=7200${cfg.hosted ? '; Secure' : ''}`);
+      }
+    }
+    req.runner = workspaces.get(workspaceId);
+    next();
+  });
+  // What this build is: the banner and the deploy check read it (verify by content, not by a 200).
+  app.get('/api/info', (_req, res) => res.json({ mode: cfg.mode, hosted: cfg.hosted, simulated: true, workspaceId: cfg.mode === 'mock' ? 'per-session' : cfg.workspaceId }));
   // Mock sign-in: the persona names come from the Privilege demo's stub issuer. No token ever appears in a response.
   app.get('/api/personas', (_req, res) => res.json({ personas: cfg.personas }));
   app.get('/api/customer', (_req, res) => res.json(customer));
   app.get('/api/channels', (_req, res) => res.json({ channels: CHANNELS }));
-  app.post('/api/reset', (_req, res) => res.json(runner.reset()));
+  app.post('/api/reset', (req, res) => res.json(req.runner.reset()));
   app.get('/api/scenarios', (_req, res) => res.json({ scenarios: listScenarios() }));
-  app.get('/api/arm', (_req, res) => res.json(runner.armStatus()));
-  app.post('/api/arm', (req, res) => (typeof req.body?.armed === 'boolean' ? res.json(runner.arm(req.body.armed)) : res.status(400).json({ error: 'armed_boolean_required' })));
-  app.post('/api/kill', (_req, res) => res.json(runner.kill()));
-  app.get('/api/runs', (_req, res) => res.json({ runs: runner.list() }));
-  app.get('/api/runs/:id', (req, res) => { const r = runner.get(req.params.id); return r ? res.json(r) : res.status(404).json({ error: 'not_found' }); });
+  app.get('/api/arm', (req, res) => res.json(req.runner.armStatus()));
+  app.post('/api/arm', (req, res) => (typeof req.body?.armed === 'boolean' ? res.json(req.runner.arm(req.body.armed)) : res.status(400).json({ error: 'armed_boolean_required' })));
+  app.post('/api/kill', (req, res) => res.json(req.runner.kill()));
+  app.get('/api/runs', (req, res) => res.json({ runs: req.runner.list() }));
+  app.get('/api/runs/:id', (req, res) => { const r = req.runner.get(req.params.id); return r ? res.json(r) : res.status(404).json({ error: 'not_found' }); });
   app.post('/api/runs/:id/resolve', async (req, res, next) => {
     const { decision, approver } = req.body ?? {};
     if (typeof decision !== 'string' || (approver !== undefined && typeof approver !== 'string')) return res.status(400).json({ error: 'decision_required' });
-    try { return res.json(await runner.resolve(req.params.id, { decision, approver })); } catch (e) {
+    try { return res.json(await req.runner.resolve(req.params.id, { decision, approver })); } catch (e) {
       if (e.code === 'not_found') return res.status(404).json({ error: e.code });
       if (e.code === 'not_parked') return res.status(409).json({ error: e.code, reason: e.message });
       if (e.code === 'bad_decision') return res.status(400).json({ error: e.code, reason: e.message });
@@ -50,9 +68,9 @@ export function createApp({ cfg, now = () => new Date(), fetchImpl = fetch }) {
   });
   app.post('/api/runs', async (req, res, next) => {
     const { scenario, persona } = req.body ?? {};
-    if (typeof scenario !== 'string' || typeof persona !== 'string') return res.status(400).json({ error: 'scenario_and_persona_required' });
-    try { return res.status(201).json(await runner.start({ scenario, persona })); } catch (e) {
-      if (e.code === 'unknown_scenario') return res.status(400).json({ error: e.code });
+    if (typeof scenario !== 'string' || (persona != null && typeof persona !== 'string')) return res.status(400).json({ error: 'scenario_and_persona_required' });
+    try { return res.status(201).json(await req.runner.start({ scenario, persona })); } catch (e) {
+      if (e.code === 'unknown_scenario' || e.code === 'persona_required') return res.status(400).json({ error: e.code });
       if (e.code === 'disarmed') return res.status(403).json({ error: e.code, reason: e.message });
       if (e.code === 'issuer_down' || e.code === 'mint_failed') return res.status(502).json({ error: e.code, reason: e.message });
       return next(e);

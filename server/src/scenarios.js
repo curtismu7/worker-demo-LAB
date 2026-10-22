@@ -60,16 +60,18 @@ SCENARIOS['compliance-evidence'] = {
   ],
 };
 
-// Unattended lane: starts with no person in the session, only when armed (see runs.js). A write above its remit parks the run.
+// Unattended lane: starts with no person in the session, only when armed (see runs.js), and runs as the agent itself (sub = the agent,
+// no act). The agent's token carries the groups the Privilege demo's stub gives it (engineers + business-analysts, invented), so it
+// behaves like a person with those groups: reads in its own repos, HELD on a requirement update. A write above its remit parks the run.
 SCENARIOS['evidence-sweep'] = {
-  id: 'evidence-sweep', lane: 'unattended', persona: 'gwen', title: 'Quarterly evidence sweep (unattended)',
-  blurb: 'A schedule fires the sweep with nobody signed in. Reads run; the requirement update waits for a human.',
+  id: 'evidence-sweep', lane: 'unattended', persona: null, title: 'Quarterly evidence sweep (unattended)',
+  blurb: 'A schedule fires the sweep with nobody signed in. The agent is the subject of its own token. Reads run; the requirement update waits for a human.',
   prompt: 'Scheduled job: run the quarterly CIP-010 evidence sweep.',
-  talk: ['Nobody is signed in. It only runs while armed, and the arm expires in an hour.', 'Reads run. Changing a requirement is never unattended: the run parks.', 'Approve it as the named approver and the policy point runs it once; deny it and it never runs.', 'Kill switch: disarms and cancels anything still waiting, so nothing resumes later.'],
+  talk: ['Nobody is signed in and there is no act claim: the agent is the subject of its own token. It only runs while armed, and the arm expires in an hour.', 'Reads run in its own repos. Changing a requirement is never unattended: the run parks.', 'Approve it as the named approver and the policy point runs it once; deny it and it never runs.', 'Kill switch: disarms and cancels anything still waiting, so nothing resumes later.', 'Be straight: the policy cannot tell this call from an attended one (same action), and the audit shows user=delivery-agent, agent=none. How a real PingFederate issues an agent-subject token is UNVERIFIED.'],
   steps: [
-    { agent: 'sweep-agent', tool: 'kb.search', args: { query: 'CIP-010 evidence requirements', collection: 'runbooks' }, expect: 'allow', note: 'Read the standard.' },
-    { agent: 'sweep-agent', tool: 'github.read_pr', args: { repo: 'meter-data-lake', pr: 7 }, expect: 'allow', note: 'Read the change evidence.' },
-    { agent: 'sweep-agent', tool: 'confluence.update_requirement', args: { requirementId: 'REQ-210', change: 'evidence attached' }, expect: 'hold', note: 'Changing a requirement is never unattended.' },
+    { agent: AGENT_SUB, tool: 'kb.search', args: { query: 'CIP-010 evidence requirements', collection: 'runbooks' }, expect: 'allow', note: 'Read the standard.' },
+    { agent: AGENT_SUB, tool: 'github.read_pr', args: PORTAL, expect: 'allow', note: 'Read the change evidence in its own repo.' },
+    { agent: AGENT_SUB, tool: 'confluence.update_requirement', args: { requirementId: 'REQ-210', change: 'evidence attached' }, expect: 'hold', note: 'Changing a requirement is never unattended.' },
   ],
 };
 

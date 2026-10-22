@@ -17,3 +17,4 @@ export const resolveRun = (id, decision, approver) =>
 export const getCustomer = () => fetch("/api/customer").then(j);
 export const getChannels = () => fetch("/api/channels").then(j);
 export const resetServer = () => fetch("/api/reset", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }).then(j);
+export const getInfo = () => fetch("/api/info").then(j);

@@ -10,7 +10,7 @@ RUN npm run build -w web
 
 FROM node:22-alpine
 WORKDIR /app
-ENV NODE_ENV=production PORT=6700
+ENV NODE_ENV=production PORT=6700 MODE=mock
 COPY package.json package-lock.json ./
 COPY web/package.json web/
 COPY server/package.json server/
@@ -20,6 +20,7 @@ COPY --from=build /app/web/dist web/dist
 USER node
 EXPOSE 6700
 # Inside the container the server must listen on all interfaces, so WORKER_BIND_ALL and HOST are set here on purpose.
+# MODE defaults to mock: the safe, self-contained build is what runs unless the standalone compose file says MODE=local.
 # The compose file publishes the port on 127.0.0.1 only; do not publish it more widely.
 ENV WORKER_BIND_ALL=1 HOST=0.0.0.0
 CMD ["node", "server/src/index.js"]

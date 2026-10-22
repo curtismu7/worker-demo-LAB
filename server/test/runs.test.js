@@ -17,7 +17,7 @@ function fakeFetch({ down = false } = {}) {
     const u = String(url);
     const b = JSON.parse(init.body || '{}');
     if (u.endsWith('/mint')) {
-      const t = jwt({ sub: b.persona, groups: ['governance-reviewers'], aud: 'pep', exp: 9999999999, ...(b.act ? { act: { sub: b.act } } : {}), n: minted.size });
+      const t = jwt({ sub: b.agent ?? b.persona, groups: ['governance-reviewers'], aud: 'pep', exp: 9999999999, ...(b.act ? { act: { sub: b.act } } : {}), n: minted.size });
       minted.add(t);
       return { ok: true, status: 200, json: async () => ({ access_token: t }) };
     }
@@ -124,7 +124,8 @@ describe('unattended lane', () => {
     expect((await request(a).post('/api/arm').send({ armed: true })).body.armed).toBe(true);
     const run = await request(a).post('/api/runs').send({ scenario: 'evidence-sweep', persona: 'priya' });
     expect(run.status).toBe(201);
-    expect(run.body).toMatchObject({ unattended: true, status: 'parked' });
+    expect(run.body).toMatchObject({ unattended: true, status: 'parked', persona: null });
+    expect(run.body.claims).toMatchObject({ sub: 'delivery-agent', act: null }); // the agent is the subject: no person, no act
     expect((await request(a).post('/api/arm').send({ armed: false })).body.armed).toBe(false);
     expect((await request(a).post('/api/arm').send({})).status).toBe(400);
   });
@@ -205,5 +206,17 @@ describe('parked runs: approve, deny, expire, kill', () => {
     expect((await request(a).get(`/api/runs/${run.id}`)).body.status).toBe('cancelled');
     expect((await request(a).post(`/api/runs/${run.id}/resolve`).send({ decision: 'approve' })).status).toBe(409);
     expect((await request(a).post('/api/runs').send({ scenario: 'evidence-sweep', persona: 'mark' })).status).toBe(403);
+  });
+});
+
+describe('unattended token shape', () => {
+  it('mints the agent as the subject: { agent } only, never a persona or act', async () => {
+    const f = mintLog();
+    const a = app(f);
+    await request(a).post('/api/arm').send({ armed: true });
+    const res = await request(a).post('/api/runs').send({ scenario: 'evidence-sweep' }); // no persona needed
+    expect(res.status).toBe(201);
+    expect(f.mints).toEqual([{ agent: 'delivery-agent' }]);
+    expect((await request(a).post('/api/runs').send({ scenario: 'code-review' })).body.error).toBe('persona_required');
   });
 });

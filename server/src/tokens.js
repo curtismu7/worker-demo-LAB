@@ -1,11 +1,12 @@
 // Mock-mode token source: asks the Privilege demo's local stub issuer (NOT PingFederate) for a persona token, loopback only.
 // The raw token never leaves the server; claimSummary() is all a response may show.
-export async function mintToken({ mintUrl, persona, act, groups, scope, fetchImpl = fetch }) {
+// Two shapes: a person (persona, optionally with an act agent) or an agent subject ({ agent }): sub = the agent, no act (nobody present).
+export async function mintToken({ mintUrl, persona, agent, act, groups, scope, fetchImpl = fetch }) {
   let res;
   try {
     res = await fetchImpl(mintUrl, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ persona, act, groups, scope }), signal: AbortSignal.timeout(3000),
+      body: JSON.stringify(agent ? { agent } : { persona, act, groups, scope }), signal: AbortSignal.timeout(3000),
     });
   } catch { throw Object.assign(new Error('The stub issuer did not answer. Start the Privilege demo stack.'), { code: 'issuer_down' }); }
   const j = await res.json().catch(() => ({}));

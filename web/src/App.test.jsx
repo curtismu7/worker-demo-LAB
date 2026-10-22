@@ -78,6 +78,8 @@ describe("unattended lane", () => {
     }));
     render(<App />);
     await waitFor(() => expect(screen.getByRole("switch")).toBeInTheDocument());
+    expect(screen.getByText(/Triggered by a schedule/)).toBeInTheDocument(); // no chat channel for a schedule
+    expect(screen.getByLabelText("Signed in as")).toBeDisabled(); // nobody is signed in
     expect(screen.getByRole("button", { name: "Run" })).toBeDisabled();
     fireEvent.click(screen.getByRole("switch"));
     await waitFor(() => expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "true"));
@@ -127,5 +129,15 @@ describe("channel, presenter and tokens", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
     await waitFor(() => expect(screen.getByText("aaa.bbb.ccc")).toBeInTheDocument(), { timeout: 3000 });
     expect(screen.getByText(/mock-issued/)).toBeInTheDocument();
+  });
+});
+
+describe("hosted mock banner", () => {
+  it("says hosted and simulated, and that runs are private, when the build is mock", async () => {
+    globalThis.fetch = vi.fn(async (url) => ({ ok: true, status: 200, json: async () => (
+      url === "/api/info" ? { mode: "mock", hosted: true, simulated: true } : url === "/api/scenarios" ? { scenarios: [] } : url === "/api/personas" ? { personas: [] } : { armed: false }) }));
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("note")).toHaveTextContent(/Hosted and simulated/));
+    expect(screen.getByRole("note")).toHaveTextContent(/private to this browser session/);
   });
 });

@@ -25,7 +25,8 @@ await new Promise((resolve) => {
   s.listen(cfg.port, cfg.host, () => s.close(() => { report(true, 'port free', String(cfg.port)); resolve(); }));
 });
 
-if (process.argv.includes('--skip-pep')) console.log('INFO  Privilege demo check skipped (--skip-pep)');
+if (cfg.mode === 'mock') console.log('INFO  MODE=mock: decisions and tokens are built in, no Privilege demo needed');
+else if (process.argv.includes('--skip-pep')) console.log('INFO  Privilege demo check skipped (--skip-pep)');
 else try {
   const health = new URL('/api/health', cfg.pepUrl);
   const res = await fetch(health, { signal: AbortSignal.timeout(3000) });

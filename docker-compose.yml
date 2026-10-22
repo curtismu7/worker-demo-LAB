@@ -11,6 +11,7 @@ services:
       - "127.0.0.1:${HOST_PORT:-6700}:6700"
     environment:
       PORT: "6700"
+      MODE: local
       WORKER_BIND_ALL: "1"
       HOST: 0.0.0.0
       PEP_URL: http://host.docker.internal:4510/mcp

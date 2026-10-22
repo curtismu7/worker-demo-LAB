@@ -1,0 +1,15 @@
+# The host is supplied by k8s/deploy.sh from SE_HOST (an SE-cluster host the owner names). There is deliberately no default.
+# The app checks the Host header for loopback names only, so the ingress rewrites it to 127.0.0.1:6700 for the pod; browser writes
+# are checked against ALLOWED_ORIGIN_HOST (the same SE_HOST) instead.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: worker-demo
+  annotations:
+    nginx.ingress.kubernetes.io/upstream-vhost: "127.0.0.1:6700"
+spec:
+  rules:
+    - host: ${SE_HOST}
+      http:
+        paths:
+          - { path: /, pathType: Prefix, backend: { service: { name: worker-demo, port: { name: http } } } }

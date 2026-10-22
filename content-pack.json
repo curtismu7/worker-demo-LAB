@@ -85,7 +85,7 @@
     {
       "id": "S05",
       "title": "Quarterly evidence sweep (unattended)",
-      "say": "A schedule fires the sweep with nobody signed in. Reads run; the requirement update waits for a human."
+      "say": "A schedule fires the sweep with nobody signed in. The agent is the subject of its own token. Reads run; the requirement update waits for a human."
     }
   ],
   "cards": [
@@ -152,7 +152,7 @@
     {
       "id": "try-evidence-sweep",
       "label": "Quarterly evidence sweep (unattended)",
-      "description": "A schedule fires the sweep with nobody signed in. Reads run; the requirement update waits for a human.",
+      "description": "A schedule fires the sweep with nobody signed in. The agent is the subject of its own token. Reads run; the requirement update waits for a human.",
       "group": "try-it",
       "action": {
         "type": "route",

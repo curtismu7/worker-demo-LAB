@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker-demo
+  labels: { app: worker-demo }
+spec:
+  selector: { app: worker-demo }
+  ports:
+    - { name: http, port: 80, targetPort: http }

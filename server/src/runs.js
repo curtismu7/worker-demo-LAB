@@ -27,13 +27,15 @@ export function createRunner({ cfg, fetchImpl = fetch, now = () => new Date() })
     return { ...status(), cancelled };
   }
 
-  const tokenFor = (ctx, persona, agent, scope, extra = {}) => {
-    const key = `${persona}|${agent}|${scope ?? ''}`;
+  // Unattended steps all run as the agent itself: sub = the agent, no act, no person. Every other lane is a person with an acting agent.
+  const tokenFor = (ctx, persona, agent, scope) => {
+    const subjectAgent = ctx.run?.unattended === true;
+    const key = subjectAgent ? `agent|${AGENT_SUB}` : `${persona}|${agent}|${scope ?? ''}`;
     if (!ctx.tokens.has(key)) {
-      const p = mintToken({ mintUrl: cfg.mintUrl, persona, act: agent, scope, fetchImpl, ...extra });
+      const p = mintToken({ mintUrl: cfg.mintUrl, fetchImpl, ...(subjectAgent ? { agent: AGENT_SUB } : { persona, act: agent, scope }) });
       ctx.tokens.set(key, p);
       // Rule 4: this is education, so the raw mock-issued token is shown, labelled. It is from the stub issuer, not PingFederate.
-      p.then((jwt) => ctx.run?.tokens.push({ agent, scope: scope ?? null, mock: true, issuer: 'stub issuer (not PingFederate)', jwt, claims: claimSummary(jwt) }), () => {});
+      p.then((jwt) => ctx.run?.tokens.push({ agent, scope: scope ?? null, mock: true, issuer: cfg.mode === 'mock' ? 'built-in mock issuer (unsigned, not PingFederate)' : 'stub issuer (not PingFederate)', jwt, claims: claimSummary(jwt) }), () => {});
     }
     return ctx.tokens.get(key);
   };
@@ -57,7 +59,8 @@ export function createRunner({ cfg, fetchImpl = fetch, now = () => new Date() })
     const sc = SCENARIOS[scenario];
     if (!sc) throw Object.assign(new Error('unknown scenario'), { code: 'unknown_scenario' });
     if (sc.lane === 'unattended' && !isArmed()) throw Object.assign(new Error('Unattended runs are disarmed. Arm them first.'), { code: 'disarmed' });
-    const run = { id: randomUUID(), scenario, lane: sc.lane, persona, unattended: sc.lane === 'unattended', startedAt: now().toISOString(), status: 'running', claims: null, parkedAt: null, tokens: [], steps: [] };
+    if (sc.lane !== 'unattended' && typeof persona !== 'string') throw Object.assign(new Error('persona is required'), { code: 'persona_required' });
+    const run = { id: randomUUID(), scenario, lane: sc.lane, persona: sc.lane === 'unattended' ? null : persona, unattended: sc.lane === 'unattended', startedAt: now().toISOString(), status: 'running', claims: null, parkedAt: null, tokens: [], steps: [] };
     const ctx = { tokens: new Map(), tp: undefined, run };
     run.claims = claimSummary(await tokenFor(ctx, persona, sc.steps[0].agent ?? AGENT_SUB, sc.steps[0].scope));
     runs.set(run.id, run); ctxs.set(run.id, ctx);

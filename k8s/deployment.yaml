@@ -1,0 +1,54 @@
+# MOCK-ONLY hosted build of worker-demo for the SE cluster (rule 18). Same image as the standalone, MODE=mock, WORKER_HOSTED=1
+# (the banner then says hosted and simulated). No secrets, no tenant ids, no volumes with data. Every browser session gets its own
+# in-memory workspace, so visitors are isolated; state is lost on a restart, which is fine for a demo.
+# Placeholders in ${...} are filled by k8s/deploy.sh; nothing here names a real host or registry path.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-demo
+  labels: { app: worker-demo }
+spec:
+  replicas: 1   # workspaces live in process memory (cookie-selected), so a second replica would split a visitor's session: keep one
+  selector:
+    matchLabels: { app: worker-demo }
+  template:
+    metadata:
+      labels: { app: worker-demo }
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: app
+          image: ${IMAGE}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 6700 }
+          env:
+            - { name: MODE, value: mock }
+            - { name: WORKER_HOSTED, value: "1" }
+            - { name: PORT, value: "6700" }
+            - { name: HOST, value: 0.0.0.0 }
+            - { name: WORKER_BIND_ALL, value: "1" }
+            - { name: ALLOWED_ORIGIN_HOST, value: "${SE_HOST}" }
+          readinessProbe:
+            httpGet: { path: /api/health, port: http, httpHeaders: [{ name: Host, value: "127.0.0.1:6700" }] }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/health, port: http, httpHeaders: [{ name: Host, value: "127.0.0.1:6700" }] }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 50m, memory: 96Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: tmp, emptyDir: { sizeLimit: 16Mi } }
