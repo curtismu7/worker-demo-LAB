@@ -9,7 +9,7 @@ import { CHANNELS } from './channels.js';
 import { loadCustomer } from './customer.js';
 import { hostCheck, sameOriginWrites } from './safety.js';
 
-export const DEMO = { id: 'worker-demo', name: 'Worker Agent Demo', version: '0.2.0' };
+export const DEMO = { id: 'worker-demo', name: 'Worker Agent Demo', version: '0.3.0' };
 
 export function createApp({ cfg, now = () => new Date(), fetchImpl }) {
   const app = express();

@@ -10,7 +10,7 @@ describe('GET /api/health', () => {
     expect(res.headers['cache-control']).toBe('no-store');
     expect(res.body).toEqual({
       schema: 'demo-health/1', at: '2026-10-21T12:00:00.000Z', state: 'ready', runtime: 'offline',
-      demo: { id: 'worker-demo', name: 'Worker Agent Demo', version: '0.2.0' },
+      demo: { id: 'worker-demo', name: 'Worker Agent Demo', version: '0.3.0' },
     });
     expect(JSON.stringify(res.body).length).toBeLessThan(4096);
   });

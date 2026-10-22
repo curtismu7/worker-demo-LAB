@@ -2,7 +2,7 @@
   "schema": "demo-content-pack/1",
   "id": "worker-demo",
   "title": "Worker Agent Demo",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "demo": {
     "id": "worker-demo",
     "name": "Worker Agent Demo",
