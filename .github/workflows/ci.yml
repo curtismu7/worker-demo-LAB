@@ -20,7 +20,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-      - run: npm run doctor
+      - run: npm run doctor -- --skip-pep
   secrets:
     runs-on: ${{ fromJSON(vars.RUNS_ON || '["self-hosted","macOS"]') }}
     steps:

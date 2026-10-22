@@ -1,4 +1,5 @@
 // Preflight: Node version, port free, Privilege demo (the PEP) reachable. Prints pass/fail lines only. Exit 1 on a failure.
+// `--skip-pep` skips the Privilege demo check (CI has no such stack; `npm run smoke` is the check that needs it).
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -24,7 +25,8 @@ await new Promise((resolve) => {
   s.listen(cfg.port, cfg.host, () => s.close(() => { report(true, 'port free', String(cfg.port)); resolve(); }));
 });
 
-try {
+if (process.argv.includes('--skip-pep')) console.log('INFO  Privilege demo check skipped (--skip-pep)');
+else try {
   const health = new URL('/api/health', cfg.pepUrl);
   const res = await fetch(health, { signal: AbortSignal.timeout(3000) });
   report(res.ok, 'Privilege demo reachable', res.ok ? health.origin : `HTTP ${res.status}`);

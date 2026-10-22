@@ -8,9 +8,9 @@
       "description": "A worker agent acting for a person: attended, delegated (agent to agent) and unattended runs, every tool call through a policy enforcement point that allows, denies or holds for approval. Mock only.",
       "url": "http://localhost:6700",
       "healthPath": "/api/health",
-      "composeFile": "/Users/cmuir/Development/worker-demo/docker-compose.yml",
+      "composeFile": "docker-compose.yml",
       "composeOverlays": [],
-      "notes": "Host-run: npm start (port 6700). Needs the Privilege demo on 4510 and its stub issuer on 9031 (see that repo). Mock only: no tenant, no credentials. Docker: HOST_PORT=6700 docker compose up --build -d (published on 127.0.0.1 only). composeFile is an absolute path on this machine; change it if the repo lives elsewhere. Catalog id D22 is provisional (D23 is the digital worker); confirm with the shelf owner."
+      "notes": "Host-run: npm start (port 6700). Needs the Privilege demo on 4510 and its stub issuer on 9031 (see that repo). Mock only: no tenant, no credentials. Docker: HOST_PORT=6700 docker compose up --build -d (published on 127.0.0.1 only). composeFile is relative to the repo; the shelf resolves it against where the repo is checked out. Catalog id D22 is provisional (D23 is the digital worker); confirm with the shelf owner."
     }
   ]
 }
