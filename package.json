@@ -10,7 +10,7 @@
     "web"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=26"
   },
   "scripts": {
     "dev": "npm run dev -w server & npm run dev -w web",
@@ -21,7 +21,8 @@
     "build": "npm run build -w web",
     "reset": "node scripts/reset.mjs",
     "pack": "node scripts/build-content-pack.mjs && node scripts/validate-content-pack.mjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "check:forbidden": "node scripts/check-forbidden-strings.mjs"
   },
   "devDependencies": {
     "ajv": "^8.20.0"
