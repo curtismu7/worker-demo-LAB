@@ -34,3 +34,7 @@ button.danger { border-color: var(--danger-text); color: var(--danger-text); }
 /* ReactFlow zoom controls: the library's own light buttons are unreadable on the dark theme. */
 .flow .react-flow__controls-button { background: var(--surface); color: var(--text); border: 1px solid var(--border); min-height: 0; padding: 4px; }
 .flow .react-flow__controls-button svg { fill: currentColor; }
+.mode-toggle { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.mode-toggle button { border: 0; border-radius: 0; padding: 3px 12px; background: var(--surface-2); color: var(--text); font-size: var(--font-size-sm); cursor: default; }
+.mode-toggle button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+.mode-toggle button:disabled { opacity: 0.6; }

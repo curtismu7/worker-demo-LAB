@@ -3,6 +3,7 @@ import FlowDiagram from "./FlowDiagram.jsx";
 import ChannelFrame from "./ChannelFrame.jsx";
 import TokenPanel from "./TokenPanel.jsx";
 import { getArm, getChannels, getCustomer, getInfo, getPersonas, getRun, getScenarios, kill, resetServer, resolveRun, setArm, startRun } from "./api.js";
+import ModeToggle from "./ModeToggle.jsx";
 
 const SPEEDS = [0.5, 1, 2, 4];
 const LANES = { attended: "Attended", delegated: "Delegated (agent to agent)", unattended: "Unattended" };
@@ -86,6 +87,7 @@ export default function App() {
       </p>
       <header>
         <h1>{customer.brand.name}</h1>
+        <ModeToggle mode={info.mode} />
         <p className="lede">An agent acts for a signed-in person. Every tool call it makes goes through the Privilege policy enforcement point, which allows it, denies it, or holds it for a human. <strong>Mock mode:</strong> GitHub, the knowledge base and the backlog are simulated.</p>
       </header>
 
