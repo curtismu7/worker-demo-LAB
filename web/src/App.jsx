@@ -79,7 +79,7 @@ export default function App() {
 
   return (
     <main className={`page${presenter ? " presenter" : ""}`}>
-      <p className="sim-banner" role="note">
+      <p className="banner" role="note">
         {info.mode === "mock"
           ? <><strong>Hosted and simulated.</strong> GitHub, CloudWatch, the knowledge base and the backlog are mocks. Policy decisions come from a mock table inside this app that mirrors the Privilege demo, and tokens are mock-issued and unsigned. Your runs are private to this browser session.</>
           : <><strong>Simulated.</strong> GitHub, CloudWatch, the knowledge base and the backlog are mocks. Tokens come from a local stub issuer, not PingFederate. Policy decisions come from the local Privilege demo.</>}
