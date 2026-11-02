@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { ReactFlow, Background, Controls, useNodesState, useEdgesState } from "@xyflow/react";
 
-const COLOR = { allow: "var(--ok)", deny: "var(--bad)", hold: "var(--warn)", error: "var(--bad)" };
+const COLOR = { allow: "var(--status-ok)", deny: "var(--danger-text)", hold: "var(--status-warn)", error: "var(--danger-text)" };
 const LABEL = { allow: "allowed", deny: "denied", hold: "held for approval", error: "error" };
 
 // Person -> Agent -> Privilege PEP -> one node per tool. Boxes are draggable. `shown` is how many steps have been revealed.

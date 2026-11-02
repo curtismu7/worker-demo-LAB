@@ -1,45 +1,36 @@
-:root {
-  --bg: #fff; --fg: #1b1f24; --muted: #5a6572; --card: #f4f6f8; --line: #d5dae0;
-  --red: #b3000f; --ok: #1a7f37; --bad: #c4161c; --warn: #b26a00;
-  --font-size-sm: 0.875rem; --font-size-md: 1rem; --radius-md: 8px; --space: 16px;
-  font-family: Montserrat, system-ui, sans-serif;
-}
-@media (prefers-color-scheme: dark) {
-  :root { --bg: #14171a; --fg: #e8ecf0; --muted: #9aa5b1; --card: #1d2227; --line: #333b44; --red: #ff4d57; --ok: #4cc26b; --bad: #ff6b72; --warn: #f0a63a; }
-}
-body { margin: 0; background: var(--bg); color: var(--fg); font-size: var(--font-size-md); }
-.page { max-width: 1100px; margin: 0 auto; padding: var(--space); }
+:root { --font-size-sm: 0.875rem; --radius-md: 8px; --space: 16px; }
+/* The shared sheet gives the body its 16px side gutter, so the page only adds vertical space. */
+.page { max-width: 1100px; margin: 0 auto; padding: var(--space) 0; }
 h1 { margin: 0 0 4px; } .lede, .blurb, .claims { color: var(--muted); }
 .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin: var(--space) 0 8px; }
-.controls label { display: flex; flex-direction: column; font-size: var(--font-size-sm); color: var(--muted); gap: 4px; }
-select, button { font: inherit; padding: 8px 12px; border-radius: var(--radius-md); border: 1px solid var(--line); background: var(--card); color: var(--fg); }
-button { cursor: pointer; } button:disabled { opacity: 0.5; cursor: default; }
-button.primary { background: var(--red); border-color: var(--red); color: #fff; }
-:focus-visible { outline: 3px solid var(--red); outline-offset: 2px; }
-.error { color: var(--bad); }
-.flow { height: 360px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--card); margin: var(--space) 0; }
-.node { border-radius: var(--radius-md); border: 2px solid var(--line); background: var(--bg); color: var(--fg); font-size: var(--font-size-sm); padding: 8px 12px; width: auto; }
-.node-pep { border-color: var(--red); }
-.node-allow { border-color: var(--ok); } .node-deny, .node-error { border-color: var(--bad); } .node-hold { border-color: var(--warn); }
+.controls label { display: flex; flex-direction: column; font-size: var(--font-size-sm); color: var(--muted); gap: 4px; min-width: 0; }
+.error { color: var(--danger-text); }
+.flow { height: 360px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); margin: var(--space) 0; }
+.node { border-radius: var(--radius-md); border: 2px solid var(--border); background: var(--box-dark); color: var(--on-box); font-size: var(--font-size-sm); padding: 8px 12px; width: auto; }
+.node-pep { border-color: var(--accent); }
+.node-allow { border-color: var(--status-ok); } .node-hold { border-color: var(--status-warn); }
+.node-deny, .node-error { background: var(--box-red); border-color: var(--on-box); }
 .steps { list-style: none; padding: 0; display: grid; gap: 8px; }
-.step { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 10px 12px; border-radius: var(--radius-md); background: var(--card); border-left: 4px solid var(--line); }
-.step-allow { border-left-color: var(--ok); } .step-deny, .step-error { border-left-color: var(--bad); } .step-hold { border-left-color: var(--warn); }
-.note { color: var(--muted); } .why { flex-basis: 100%; font-size: var(--font-size-sm); color: var(--muted); } .surprise { color: var(--bad); }
-.status { font-size: var(--font-size-sm); padding: 2px 8px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); }
-@media (max-width: 600px) { .controls { flex-direction: column; align-items: stretch; } }
-.node-muted { opacity: 0.6; border-style: dashed; }
+.step { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 10px 12px; border-radius: var(--radius-md); background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--border); min-width: 0; }
+.step-allow { border-left-color: var(--status-ok); } .step-deny, .step-error { border-left-color: var(--danger-text); } .step-hold { border-left-color: var(--status-warn); }
+.note { color: var(--muted); } .why { flex-basis: 100%; font-size: var(--font-size-sm); color: var(--muted); } .surprise { color: var(--danger-text); }
+.status { font-size: var(--font-size-sm); padding: 2px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); }
+@media (max-width: 600px) { .controls { flex-direction: column; flex-wrap: nowrap; align-items: stretch; } }
+.node-muted { background: var(--box-grey); border-style: dashed; }
 .arm { color: var(--muted); } .agent { color: var(--muted); }
-button.danger { border-color: var(--bad); color: var(--bad); }
-.approval { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: end; padding: 12px; margin: 8px 0; border: 2px solid var(--warn); border-radius: var(--radius-md); background: var(--card); }
+button.danger { border-color: var(--danger-text); color: var(--danger-text); }
+.approval { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: end; padding: 12px; margin: 8px 0; border: 2px solid var(--status-warn); border-radius: var(--radius-md); background: var(--surface); }
 .approval p { flex-basis: 100%; margin: 0; }
 .approval label { display: flex; flex-direction: column; font-size: var(--font-size-sm); color: var(--muted); gap: 4px; }
-.sim-banner { margin: 0 0 var(--space); padding: 10px 14px; border-radius: var(--radius-md); border: 1px solid var(--warn); background: var(--card); font-size: var(--font-size-sm); }
-.channel { margin: 8px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--card); }
+.channel { margin: 8px 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
 .channel p { margin: 4px 0; } .channel-name { font-weight: 700; } .channel-how, .channel-id { color: var(--muted); font-size: var(--font-size-sm); }
-.bubble { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px 12px; }
+.bubble { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 8px 12px; }
 .who { display: block; font-size: var(--font-size-sm); color: var(--muted); }
-.talk { margin: 8px 0; padding: 12px 14px; border-left: 4px solid var(--red); background: var(--card); border-radius: var(--radius-md); }
+.talk { margin: 8px 0; padding: 12px 14px; border: 1px solid var(--border); border-left: 4px solid var(--accent); background: var(--surface); border-radius: var(--radius-md); }
 .talk h2 { margin: 0 0 4px; } .talk ul { margin: 0; padding-left: 20px; }
-.token { margin: 6px 0; } .token pre { overflow-x: auto; background: var(--card); padding: 8px; border-radius: var(--radius-md); font-size: var(--font-size-sm); }
+.token { margin: 6px 0; } .token pre { overflow-x: auto; background: var(--surface-2); padding: 8px; border-radius: var(--radius-md); font-size: var(--font-size-sm); }
 .token .raw { word-break: break-all; white-space: pre-wrap; }
-.presenter { --font-size-sm: 1.05rem; --font-size-md: 1.25rem; }
+.presenter { --font-size-sm: 1.05rem; font-size: 1.25rem; }
+/* ReactFlow zoom controls: the library's own light buttons are unreadable on the dark theme. */
+.flow .react-flow__controls-button { background: var(--surface); color: var(--text); border: 1px solid var(--border); min-height: 0; padding: 4px; }
+.flow .react-flow__controls-button svg { fill: currentColor; }
