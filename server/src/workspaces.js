@@ -5,7 +5,9 @@ import { createMockFetch } from './mockStack.js';
 // session its own, so one visitor's runs, arm switch, kill switch and Reset never touch another's. Bounded in count and idle time.
 export function createWorkspaces({ cfg, fetchImpl, now = () => new Date(), max = 200, idleMs = 2 * 60 * 60 * 1000 }) {
   const spaces = new Map(); // id -> { runner, seen }
-  const make = () => createRunner({ cfg, now, fetchImpl: fetchImpl ?? (cfg.mode === 'mock' ? createMockFetch({ now }) : fetch) });
+  // The mock/real choice is made per call so a rule-19 runtime switch takes effect without a restart.
+  const mockFetch = createMockFetch({ now });
+  const make = () => createRunner({ cfg, now, fetchImpl: (...a) => (cfg.mode === 'mock' ? mockFetch(...a) : (fetchImpl ?? fetch)(...a)) });
 
   function get(workspaceId) {
     const t = now().getTime();
