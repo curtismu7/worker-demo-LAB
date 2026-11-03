@@ -27,6 +27,12 @@ export default function App() {
   const [customer, setCustomer] = useState({ brand: { name: "Worker agent demo" }, vocabulary: { person: "Person", agent: "Agent" } });
   const [presenter, setPresenter] = useState(false);
   const [info, setInfo] = useState({ mode: "local", hosted: false });
+  const changeMode = async (source) => {
+    try {
+      const res = await fetch("/api/mode", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source }) });
+      if (res.ok) { const j = await res.json(); setInfo((i) => ({ ...i, mode: j.source === "real" ? "local" : "mock", source: j.source })); }
+    } catch { /* the note stays as it was */ }
+  };
   const [arm, setArmState] = useState({ armed: false, expiresAt: null });
   const timer = useRef(null);
 
@@ -87,7 +93,7 @@ export default function App() {
       </p>
       <header>
         <h1>{customer.brand.name}</h1>
-        <ModeToggle mode={info.mode} />
+        <ModeToggle mode={info.mode} realAvailable={info.realAvailable !== false} onChange={changeMode} />
         <p className="lede">An agent acts for a signed-in person. Every tool call it makes goes through the Privilege policy enforcement point, which allows it, denies it, or holds it for a human. <strong>Mock mode:</strong> GitHub, the knowledge base and the backlog are simulated.</p>
       </header>
 
