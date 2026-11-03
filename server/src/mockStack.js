@@ -29,6 +29,9 @@ const SCHEMAS = {
   'deploy.rollback': { service: str },
 };
 
+// The cast (the {{cast.*}} token family: a persona id resolves to the person and their group, as the
+// story system in the sibling demos fills {{cast.<id>}} from a vertical). Here the persona is chosen
+// in the UI and the group membership drives the policy.
 export const PERSONAS = {
   eli: ['engineers'], gwen: ['governance-reviewers'], ben: ['business-analysts'], cora: ['compliance'], priya: ['governance-reviewers'],
 };
