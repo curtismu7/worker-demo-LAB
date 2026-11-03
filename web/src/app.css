@@ -40,3 +40,5 @@ button.danger { border-color: var(--danger-text); color: var(--danger-text); }
 .mode-toggle button:disabled { opacity: 0.6; }
 .card[aria-labelledby="real-signin-h"] { max-width: 40rem; }
 .card form { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.header-signin { margin-left: auto; font-weight: 600; }
