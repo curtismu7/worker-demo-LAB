@@ -124,6 +124,9 @@ export default function App() {
       <header>
         <h1>{customer.brand.name}</h1>
         <ModeToggle mode={info.mode} realAvailable={info.realAvailable !== false} onChange={changeMode} />
+        {info.source === "real" && !realAuth.subject && (
+          <button type="button" className="header-signin" onClick={() => document.getElementById("real-signin-h")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Sign in</button>
+        )}
         <p className="lede">An agent acts for a signed-in person. Every tool call it makes goes through the Privilege policy enforcement point, which allows it, denies it, or holds it for a human. <strong>Mock mode:</strong> GitHub, the knowledge base and the backlog are simulated.</p>
       </header>
 
