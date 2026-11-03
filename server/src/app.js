@@ -4,6 +4,10 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { randomBytes } from 'node:crypto';
 import { createWorkspaces } from './workspaces.js';
+
+const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+import { createPiFlowLogin, loginProblems } from './pfTokens.js';
+import { claimSummary } from './tokens.js';
 import { listScenarios } from './scenarios.js';
 import { CHANNELS } from './channels.js';
 import { loadCustomer } from './customer.js';
@@ -44,10 +48,15 @@ export function createApp({ cfg, now = () => new Date(), fetchImpl }) {
   // What this build is: the banner and the deploy check read it (verify by content, not by a 200).
   // Rule 19: source + realAvailable; Real = the local Privilege demo's MCP door (PEP) and stub issuer.
   const realAvailable = () => {
+    if (!cfg.pfAuthClientId || !cfg.pfAuthClientSecret || !cfg.pfAuthRedirectUri) return false; // Real = real login
     for (const u of [cfg.pepUrl, cfg.mintUrl]) {
       try { const x = new URL(u); if (!['http:', 'https:'].includes(x.protocol)) return false; } catch { return false; }
     }
     return true;
+  };
+  const realFix = () => {
+    const p = loginProblems(cfg);
+    return p.length ? `Real mode needs: ${p.join('; ')} Set PF_URL, PF_AUTH_CLIENT_ID, PF_AUTH_CLIENT_SECRET, PF_AUTH_REDIRECT_URI in the shared settings file, then restart.` : null;
   };
   app.get('/api/info', (_req, res) => res.json({
     mode: cfg.mode, hosted: cfg.hosted, simulated: cfg.mode === 'mock',
@@ -64,13 +73,42 @@ export function createApp({ cfg, now = () => new Date(), fetchImpl }) {
     }
     const mode = b.source === 'real' ? 'local' : 'mock';
     if (mode === 'local' && !realAvailable()) {
-      return res.status(409).json({ error: 'conflict', message: 'Real mode is not available: set PEP_URL and MINT_URL (the Privilege demo door and its stub issuer) in the shared settings file.' });
+      return res.status(409).json({ error: 'conflict', message: realFix() || 'Real mode is not available: set PEP_URL and MINT_URL in the shared settings file.' });
     }
     cfg.mode = mode;
     return res.json({ source: b.source });
   });
   // Mock sign-in: the persona names come from the Privilege demo's stub issuer. No token ever appears in a response.
   app.get('/api/personas', (_req, res) => res.json({ personas: cfg.personas }));
+  // Real sign-in (live PingFederate, pi.flow): one run in flight per workspace. The real token lands in the
+  // workspace's runner so tokenFor uses it for person lanes; the unattended lane uses client_credentials.
+  const pfLogin = createPiFlowLogin({ cfg, fetchImpl: (url, init) => fetch(url, init), now: () => Date.now() });
+  const loginRuns = new Map(); // workspaceId -> run
+  app.get('/api/auth/real/config', (_req, res) => res.json({
+    available: realAvailable(), mode: cfg.mode,
+    ...(realAvailable() ? {} : { fix: realFix() }),
+  }));
+  app.post('/api/auth/real/start', wrap(async (req, res) => {
+    if (!realAvailable()) return res.status(409).json({ error: 'conflict', message: realFix() || 'Real mode is not available.' });
+    const run = await pfLogin.start();
+    loginRuns.set(req.workspaceId, run);
+    res.json({ ok: true, status: run.status });
+  }));
+  app.post('/api/auth/real/credentials', wrap(async (req, res) => {
+    if (!realAvailable()) return res.status(409).json({ error: 'conflict', message: realFix() || 'Real mode is not available.' });
+    const run = loginRuns.get(req.workspaceId);
+    try {
+      const tokens = await pfLogin.submit(run, { username: req.body?.username, password: req.body?.password });
+      const summary = claimSummary(tokens.accessToken);
+      req.runner.setRealToken({ person: tokens.accessToken, ...(cfg.pfM2mScope ? {} : {}) });
+      loginRuns.delete(req.workspaceId);
+      return res.json({ ok: true, subject: summary?.sub ?? null, groups: summary?.groups ?? [] });
+    } catch (e) {
+      const status = e.status || 502;
+      if (status >= 401) loginRuns.delete(req.workspaceId);
+      return res.status(status).json({ error: e.code || 'signin_failed', message: e.message, ...(e.detail ? { detail: e.detail } : {}) });
+    }
+  }));
   app.get('/api/customer', (_req, res) => res.json(customer));
   app.get('/api/channels', (_req, res) => res.json({ channels: CHANNELS }));
   app.post('/api/reset', (req, res) => res.json(req.runner.reset()));

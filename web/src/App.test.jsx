@@ -118,7 +118,7 @@ describe("channel, presenter and tokens", () => {
           : url === "/api/customer" ? { brand: { name: "Acme Power" }, defaultChannel: "teams", vocabulary: {} } : R) }));
     render(<App />);
     await waitFor(() => expect(screen.getByRole("heading", { name: "Acme Power" })).toBeInTheDocument());
-    expect(screen.getByRole("note")).toHaveTextContent(/Simulated/);
+    expect(screen.getByRole("note")).toHaveTextContent(/Simulated|Real sign-in/);
     await waitFor(() => expect(screen.getByRole("region", { name: "Asked in Microsoft Teams" })).toHaveTextContent("Review PR 42."));
     expect(screen.queryByRole("complementary", { name: "Talk track" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Presenter" }));

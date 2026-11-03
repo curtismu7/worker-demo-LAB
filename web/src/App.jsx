@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import FlowDiagram from "./FlowDiagram.jsx";
 import ChannelFrame from "./ChannelFrame.jsx";
 import TokenPanel from "./TokenPanel.jsx";
@@ -30,8 +30,23 @@ export default function App() {
   const changeMode = async (source) => {
     try {
       const res = await fetch("/api/mode", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source }) });
-      if (res.ok) { const j = await res.json(); setInfo((i) => ({ ...i, mode: j.source === "real" ? "local" : "mock", source: j.source })); }
+      if (res.ok) { const j = await res.json(); setInfo((i) => ({ ...i, mode: j.source === "real" ? "local" : "mock", source: j.source })); refreshReal(); }
     } catch { /* the note stays as it was */ }
+  };
+  // Real sign-in: a real PingFederate pi.flow login. The verified subject is shown; runs use the real token.
+  const [realAuth, setRealAuth] = useState({ checked: false, available: null, subject: null, problem: "" });
+  const refreshReal = useCallback(() => {
+    fetch("/api/auth/real/config").then((r) => r.json()).then((j) => setRealAuth((a) => ({ ...a, checked: true, available: j.available === true }))).catch(() => setRealAuth((a) => ({ ...a, checked: true, available: false })));
+  }, []);
+  useEffect(() => { refreshReal(); }, [refreshReal]);
+  const realSignIn = async (username, password) => {
+    setRealAuth((a) => ({ ...a, problem: "" }));
+    const start = await fetch("/api/auth/real/start", { method: "POST" });
+    if (!start.ok) { const j = await start.json().catch(() => ({})); setRealAuth((a) => ({ ...a, problem: j.message || `HTTP ${start.status}` })); return; }
+    const done = await fetch("/api/auth/real/credentials", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
+    const j = await done.json().catch(() => ({}));
+    if (!done.ok) { setRealAuth((a) => ({ ...a, problem: j.message || `HTTP ${done.status}` })); return; }
+    setRealAuth((a) => ({ ...a, subject: j.subject, problem: "" }));
   };
   const [arm, setArmState] = useState({ armed: false, expiresAt: null });
   const timer = useRef(null);
@@ -89,8 +104,23 @@ export default function App() {
       <p className="banner" role="note">
         {info.mode === "mock"
           ? <><strong>Hosted and simulated.</strong> GitHub, CloudWatch, the knowledge base and the backlog are mocks. Policy decisions come from a mock table inside this app that mirrors the Privilege demo, and tokens are mock-issued and unsigned. Your runs are private to this browser session.</>
-          : <><strong>Simulated.</strong> GitHub, CloudWatch, the knowledge base and the backlog are mocks. Tokens come from a local stub issuer, not PingFederate. Policy decisions come from the local Privilege demo.</>}
+          : <><strong>Real sign-in.</strong> Tokens come from a real PingFederate login (pi.flow). GitHub, CloudWatch, the knowledge base and the backlog are mocks. Policy decisions come from the local Privilege demo.</>}
       </p>
+      {info.source === "real" && realAuth.checked && realAuth.available && !realAuth.subject && (
+        <section className="card" aria-labelledby="real-signin-h">
+          <h2 id="real-signin-h">Sign in with PingFederate</h2>
+          <p className="muted">A real pi.flow login runs server-side; the verified token is used for every run in Real mode. The password is never stored.</p>
+          <form onSubmit={(e) => { e.preventDefault(); realSignIn(e.target.username.value, e.target.password.value); }} aria-label="Real sign-in">
+            <label className="inline">Username<input name="username" type="text" autoComplete="username" required maxLength={256} /></label>
+            <label className="inline">Password<input name="password" type="password" autoComplete="current-password" required maxLength={1024} /></label>
+            <button type="submit" className="primary">Sign in</button>
+          </form>
+          {realAuth.problem && <p role="alert" className="problems">{realAuth.problem}</p>}
+        </section>
+      )}
+      {info.source === "real" && realAuth.subject && (
+        <p className="banner" role="status">Signed in as <strong>{realAuth.subject}</strong> (verified against the PingFederate JWKS at sign-in). Runs use this real token.</p>
+      )}
       <header>
         <h1>{customer.brand.name}</h1>
         <ModeToggle mode={info.mode} realAvailable={info.realAvailable !== false} onChange={changeMode} />

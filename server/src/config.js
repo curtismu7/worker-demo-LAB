@@ -20,6 +20,12 @@ export function config(env = process.env) {
     pepUrl: mock ? 'http://mock.invalid/mcp' : env.PEP_URL || 'http://127.0.0.1:4510/mcp',
     // Mock mode: the Privilege demo stack's stub issuer (not PingFederate). Loopback only.
     mintUrl: mock ? 'http://mock.invalid/mint' : env.MINT_URL || 'http://127.0.0.1:9031/mint',
+    // Real token sources (live PingFederate): the pi.flow sign-in client and the M2M scope for the unattended lane.
+    pfAuthClientId: env.PF_AUTH_CLIENT_ID || '',
+    pfAuthClientSecret: env.PF_AUTH_CLIENT_SECRET || '',
+    pfAuthRedirectUri: env.PF_AUTH_REDIRECT_URI || (env.PF_URL ? `${env.PF_URL.replace(/\/+$/, '')}/cb` : ''),
+    pfAuthScope: env.PF_AUTH_SCOPE || 'openid profile',
+    pfM2mScope: env.PF_M2M_SCOPE || 'tools:invoke',
   };
 }
 
