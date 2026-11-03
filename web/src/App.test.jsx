@@ -143,14 +143,32 @@ describe("hosted mock banner", () => {
 });
 
 describe("mode toggle", () => {
-  it("shows the server's launch mode as pressed and disables the other option", async () => {
-    globalThis.fetch = vi.fn(async (url) => ({ ok: true, status: 200, json: async () => (
-      url === "/api/info" ? { mode: "mock", hosted: true, simulated: true } : url === "/api/scenarios" ? { scenarios: [] } : url === "/api/personas" ? { personas: [] }
-        : url === "/api/customer" ? { brand: { name: "Acme Power" }, defaultChannel: "teams", vocabulary: {} } : {}) }));
+  it("Mock pressed by default; Real posts {source:'real'} and the info re-fetch flips the pressed states; unconfigured Real is disabled with the how-to", async () => {
+    const state = { mode: "mock", hosted: true, simulated: true, realAvailable: true };
+    globalThis.fetch = vi.fn(async (url, opts) => {
+      if (url === "/api/mode" && opts?.method === "POST") {
+        const body = JSON.parse(opts.body);
+        state.mode = body.source === "real" ? "local" : "mock";
+        return { ok: true, status: 200, json: async () => ({ source: body.source }) };
+      }
+      return { ok: true, status: 200, json: async () => (
+        url === "/api/info" ? { ...state } : url === "/api/scenarios" ? { scenarios: [] } : url === "/api/personas" ? { personas: [] }
+          : url === "/api/customer" ? { brand: { name: "Acme Power" }, defaultChannel: "teams", vocabulary: {} } : {}) };
+    });
     render(<App />);
     await waitFor(() => expect(screen.getByRole("heading", { name: "Acme Power" })).toBeInTheDocument());
     await waitFor(() => expect(screen.getByTestId("mode-mock")).toHaveAttribute("aria-pressed", "true"));
-    expect(screen.getByTestId("mode-real")).toBeDisabled();
-    expect(screen.getByTestId("mode-real")).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(screen.getByTestId("mode-real"));
+    await waitFor(() => expect(screen.getByTestId("mode-real")).toHaveAttribute("aria-pressed", "true"));
+    expect(screen.getByTestId("mode-mock")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("Real is disabled with a title when the server reports realAvailable: false", async () => {
+    globalThis.fetch = vi.fn(async (url) => ({ ok: true, status: 200, json: async () => (
+      url === "/api/info" ? { mode: "mock", hosted: true, simulated: true, realAvailable: false } : url === "/api/scenarios" ? { scenarios: [] } : url === "/api/personas" ? { personas: [] }
+        : url === "/api/customer" ? { brand: { name: "Acme Power" }, defaultChannel: "teams", vocabulary: {} } : {}) }));
+    render(<App />);
+    await waitFor(() => expect(screen.getByTestId("mode-real")).toBeDisabled());
+    expect(screen.getByTestId("mode-real")).toHaveAttribute("title");
   });
 });
