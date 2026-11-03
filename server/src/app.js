@@ -42,7 +42,33 @@ export function createApp({ cfg, now = () => new Date(), fetchImpl }) {
     next();
   });
   // What this build is: the banner and the deploy check read it (verify by content, not by a 200).
-  app.get('/api/info', (_req, res) => res.json({ mode: cfg.mode, hosted: cfg.hosted, simulated: true, workspaceId: cfg.mode === 'mock' ? 'per-session' : cfg.workspaceId }));
+  // Rule 19: source + realAvailable; Real = the local Privilege demo's MCP door (PEP) and stub issuer.
+  const realAvailable = () => {
+    for (const u of [cfg.pepUrl, cfg.mintUrl]) {
+      try { const x = new URL(u); if (!['http:', 'https:'].includes(x.protocol)) return false; } catch { return false; }
+    }
+    return true;
+  };
+  app.get('/api/info', (_req, res) => res.json({
+    mode: cfg.mode, hosted: cfg.hosted, simulated: cfg.mode === 'mock',
+    workspaceId: cfg.mode === 'mock' ? 'per-session' : cfg.workspaceId,
+    source: cfg.mode === 'mock' ? 'mock' : 'real',
+    realAvailable: realAvailable(),
+  }));
+  // Rule 19: POST /api/mode {source:"mock"|"real"} switches at runtime. Real requires the PEP and issuer URLs to be
+  // real URLs (loopback or deliberately allowed); 409 otherwise. A switch keeps each workspace's history.
+  app.post('/api/mode', (req, res) => {
+    const b = req.body;
+    if (!b || typeof b !== 'object' || Array.isArray(b) || Object.keys(b).length !== 1 || !['mock', 'real'].includes(b.source)) {
+      return res.status(400).json({ error: 'bad_body', message: 'body must be exactly {"source": "mock" or "real"}' });
+    }
+    const mode = b.source === 'real' ? 'local' : 'mock';
+    if (mode === 'local' && !realAvailable()) {
+      return res.status(409).json({ error: 'conflict', message: 'Real mode is not available: set PEP_URL and MINT_URL (the Privilege demo door and its stub issuer) in the shared settings file.' });
+    }
+    cfg.mode = mode;
+    return res.json({ source: b.source });
+  });
   // Mock sign-in: the persona names come from the Privilege demo's stub issuer. No token ever appears in a response.
   app.get('/api/personas', (_req, res) => res.json({ personas: cfg.personas }));
   app.get('/api/customer', (_req, res) => res.json(customer));

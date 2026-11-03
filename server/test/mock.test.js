@@ -63,7 +63,7 @@ describe('MODE=mock end to end (no network, no other service)', () => {
 
   it('reports what it is: mode, simulated, per-session workspace', async () => {
     const res = await request(mockApp({ WORKER_HOSTED: '1' })).get('/api/info');
-    expect(res.body).toEqual({ mode: 'mock', hosted: true, simulated: true, workspaceId: 'per-session' });
+    expect(res.body).toEqual({ mode: 'mock', hosted: true, simulated: true, workspaceId: 'per-session', source: 'mock', realAvailable: true });
   });
 });
 
@@ -160,5 +160,24 @@ describe('mock approvals visibility mirrors the real pack', () => {
     expect((await decide('ben')).status).toBe(403);  // the requester
     expect((await decide('cora')).status).toBe(404); // unrelated to this call
     expect((await decide('priya')).status).toBe(200);
+  });
+});
+
+describe('rule 19: the Mock/Real switch', () => {
+  it('POST /api/mode switches mock↔real at runtime; info follows; exact body required', async () => {
+    const app = mockApp({});
+    const post = (body) => request(app).post('/api/mode').set('Origin', 'http://127.0.0.1').set('Host', '127.0.0.1').send(body);
+    const bad = await post({ source: 'sideways' }); expect(bad.status).toBe(400);
+    const extra = await post({ source: 'mock', extra: 1 }); expect(extra.status).toBe(400);
+    const up = await post({ source: 'real' }); expect(up.status).toBe(200);
+    expect((await request(app).get('/api/info')).body.source).toBe('real');
+    const down = await post({ source: 'mock' }); expect(down.status).toBe(200);
+    expect((await request(app).get('/api/info')).body.source).toBe('mock');
+  });
+  it('a real URL that is not http(s) makes Real unavailable: 409 and a disabled reason', async () => {
+    const app = mockApp({ MODE: 'local', PEP_URL: 'not a url' });
+    const res = await request(app).post('/api/mode').set('Origin', 'http://127.0.0.1').set('Host', '127.0.0.1').send({ source: 'real' });
+    expect(res.status).toBe(409); expect(res.body.error).toBe('conflict');
+    expect((await request(app).get('/api/info')).body.realAvailable).toBe(false);
   });
 });
