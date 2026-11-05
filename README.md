@@ -1,9 +1,42 @@
-# worker-demo
+# Worker Demo LAB
+
+Repo: https://github.com/curtismu7/worker-demo-LAB
+
+Tier: Demo
 
 A standalone SE demo of a worker agent. It runs three ways: attended (a signed-in person asks), delegated (the agent hands work to narrower source agents), and unattended (a schedule, no person present). Every tool call goes through the Privilege demo's policy enforcement point.
 
 **Catalog:** D22 + D23, with a utility skin (NERC CIP style compliance evidence). One of the family of small standalone SE demo repos.
 **Tier:** Demo. **Status:** v0.3.0. Three lanes (attended, delegated, unattended with the agent as the token subject), five scenarios, approvals, kill switch, five channel skins, presenter mode with a talk track, `customer.config.json`, per-visitor workspaces, Docker, CI, content pack, and a mock-only SE k8s build (manifests and deploy script; never deployed). Two modes from one image: `MODE=local` (the real Privilege demo and its stub issuer) and `MODE=mock` (everything in-process; the hosted build). `npm run smoke` passes the same 15 checks against both. Not verified: PingFederate tokens (a stub issuer is used), the customer's real groups, and how a real PingFederate issues an agent-subject token. Nothing here is a real GitHub, CloudWatch or Confluence connection. See `docs/safety.md` for what is simulated and `docs/talk-track.md` to present it.
+
+## Run from a clone
+
+Prerequisites: Node 26. Docker (OrbStack) only for the Docker form.
+
+```
+git clone https://github.com/curtismu7/worker-demo-LAB.git
+cd worker-demo-LAB
+npm ci
+npm run build
+npm run doctor
+npm start
+```
+
+## Ports, and what to do if the port is taken
+
+```
+Ports: worker-demo-LAB listens on 6700 (set with PORT, default 6700).
+Port range for this app: 6700-6849.
+
+If the port is taken:
+1. Find what is using it:
+   lsof -iTCP:6700 -sTCP:LISTEN -n -P
+2. If it is an old copy of this app, stop that process: kill <PID>.
+3. If it is something else, stop it, or start this app on another port:
+   PORT=<other port> npm start
+```
+
+Other variable: `HOST_PORT=6700` (Docker host port). Keep both inside 6700-6849.
 
 ## Run
 
@@ -26,4 +59,4 @@ Port range for this repo: 6700-6849.
 
 ## Run against the Privilege demo (utility pack)
 
-In a clone of `cmuir_pingcorp/privilege-demo` (main has the pack): `PACK=utility node stub-issuer/server.mjs` (the local stub issuer, port 9031; the unattended lane needs the agent-subject mint from privilege-demo PR #3, or main once it merges), then run the app with `PACK=utility IDP=pf PF_URL=http://127.0.0.1:9031 PF_AUDIENCE=privilege-demo` on port 4510 (see that repo's README). Then start this demo (`MODE=local`, the default for `npm start`) and run `npm run smoke`. Run it against `MODE=mock` too.
+In a clone of the `privilege-demo` repo (main has the pack): `PACK=utility node stub-issuer/server.mjs` (the local stub issuer, port 9031; the unattended lane needs the agent-subject mint from privilege-demo PR #3, or main once it merges), then run the app with `PACK=utility IDP=pf PF_URL=http://127.0.0.1:9031 PF_AUDIENCE=privilege-demo` on port 4510 (see that repo's README). Then start this demo (`MODE=local`, the default for `npm start`) and run `npm run smoke`. Run it against `MODE=mock` too.
