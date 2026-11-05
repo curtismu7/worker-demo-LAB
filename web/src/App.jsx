@@ -4,6 +4,7 @@ import ChannelFrame from "./ChannelFrame.jsx";
 import TokenPanel from "./TokenPanel.jsx";
 import { getArm, getChannels, getCustomer, getInfo, getPersonas, getRun, getScenarios, kill, resetServer, resolveRun, setArm, startRun } from "./api.js";
 import ModeToggle from "./ModeToggle.jsx";
+import ShelfLink from "./components/ShelfLink.jsx";
 
 const SPEEDS = [0.5, 1, 2, 4];
 const LANES = { attended: "Attended", delegated: "Delegated (agent to agent)", unattended: "Unattended" };
@@ -123,6 +124,7 @@ export default function App() {
       )}
       <header>
         <h1>{customer.brand.name}</h1>
+        <ShelfLink />
         <ModeToggle mode={info.mode} realAvailable={info.realAvailable !== false} onChange={changeMode} />
         {info.source === "real" && !realAuth.subject && (
           <button type="button" className="header-signin" onClick={() => document.getElementById("real-signin-h")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Sign in</button>

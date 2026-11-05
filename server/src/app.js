@@ -12,6 +12,7 @@ import { listScenarios } from './scenarios.js';
 import { CHANNELS } from './channels.js';
 import { loadCustomer } from './customer.js';
 import { hostCheck, sameOriginWrites } from './safety.js';
+import { shelfInfo } from './shelfLink.js';
 
 export const DEMO = { id: 'worker-demo', name: 'Worker Agent Demo', version: '0.3.0' };
 
@@ -145,6 +146,7 @@ export function createApp({ cfg, now = () => new Date(), fetchImpl }) {
   const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/dist');
   if (fs.existsSync(dist)) {
     app.use(express.static(dist));
+app.get('/api/shelf', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json(shelfInfo()); }); // the header "Shelf" button
     app.get('*', (_req, res) => res.sendFile(path.join(dist, 'index.html')));
   }
 
