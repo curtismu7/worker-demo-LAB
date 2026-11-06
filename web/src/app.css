@@ -42,3 +42,6 @@ button.danger { border-color: var(--danger-text); color: var(--danger-text); }
 .card form { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
 header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .header-signin { margin-left: auto; font-weight: 600; }
+
+.shell-theme { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text); }
+.shell-theme select { min-height: 32px; padding: 4px 8px; }

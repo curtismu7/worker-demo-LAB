@@ -10,9 +10,23 @@ const SPEEDS = [0.5, 1, 2, 4];
 const LANES = { attended: "Attended", delegated: "Delegated (agent to agent)", unattended: "Unattended" };
 const OUTCOME_TEXT = { allow: "Allowed", deny: "Denied", hold: "Held for approval", error: "Error" };
 const STATUS_TEXT = { parked: "waiting for a person", done: "done", failed: "failed", denied: "approval denied", expired: "stopped waiting", cancelled: "cancelled by kill switch", running: "running" };
+const THEME_KEY = "wkd.theme";
+const THEMES = [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]];
+function initialTheme() {
+  try { const t = localStorage.getItem(THEME_KEY); if (t === "light" || t === "dark") return t; } catch { /* storage blocked */ }
+  return "auto";
+}
 
 export default function App() {
   const [scenarios, setScenarios] = useState([]);
+  const [theme, setTheme] = useState(initialTheme);
+
+  useEffect(() => { if (theme === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = theme; }, [theme]);
+
+  const pickTheme = (next) => {
+    try { if (next === "auto") localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, next); } catch { /* not remembered */ }
+    setTheme(next);
+  };
   const [personas, setPersonas] = useState([]);
   const [scenarioId, setScenarioId] = useState("");
   const [persona, setPersona] = useState("");
@@ -152,6 +166,11 @@ export default function App() {
         <button className="primary" onClick={onRun} disabled={busy || !scenarioId || (!needsArm && !persona) || (needsArm && !arm.armed)}>{busy ? "Running…" : "Run"}</button>
         <button onClick={onSimulate} disabled={!run}>Simulate again</button>
         <button onClick={onReset}>Reset</button>
+        <label className="shell-theme">Theme
+          <select value={theme} onChange={(e) => pickTheme(e.target.value)}>
+            {THEMES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+          </select>
+        </label>
         <button aria-pressed={presenter} onClick={() => setPresenter((p) => !p)}>Presenter</button>
         <button className="danger" onClick={onKill}>Kill switch</button>
       </section>
