@@ -142,11 +142,12 @@ export function createApp({ cfg, now = () => new Date(), fetchImpl }) {
     }
   });
 
+  // The header "Shelf" button. Before the /api 404 below and outside the web-build check, so it answers with or without a build.
+  app.get('/api/shelf', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json(shelfInfo()); });
   app.use('/api', (_req, res) => res.status(404).json({ error: 'not_found' }));
   const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/dist');
   if (fs.existsSync(dist)) {
     app.use(express.static(dist));
-app.get('/api/shelf', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json(shelfInfo()); }); // the header "Shelf" button
     app.get('*', (_req, res) => res.sendFile(path.join(dist, 'index.html')));
   }
 

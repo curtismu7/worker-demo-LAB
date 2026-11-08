@@ -49,3 +49,7 @@ test('the container may call out only to the names listed in ALLOWED_HOSTS', () 
     assert.ok(allowed.includes(host), `${key} host ${host} must be in ALLOWED_HOSTS`);
   }
 });
+
+test('docker-compose.yml passes a usable SHELF_URL into the container (the shelf button needs it)', () => {
+  assert.match(here('docker-compose.yml'), /^\s*SHELF_URL: \$\{SHELF_URL:-http:\/\/127\.0\.0\.1:4400\}\s*$/m);
+});
