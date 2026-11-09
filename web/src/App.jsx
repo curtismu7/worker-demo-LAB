@@ -5,6 +5,8 @@ import TokenPanel from "./TokenPanel.jsx";
 import { getArm, getChannels, getCustomer, getInfo, getPersonas, getRun, getScenarios, kill, resetServer, resolveRun, setArm, startRun } from "./api.js";
 import ModeToggle from "./ModeToggle.jsx";
 import ShelfLink from "./components/ShelfLink.jsx";
+// Opened from Customer Agent LAB (UC38 and UC45 route here): strip below the banner + header Back only; nothing is preselected.
+import ReturnLink from "./return-link/ReturnLink.jsx";
 
 const SPEEDS = [0.5, 1, 2, 4];
 const LANES = { attended: "Attended", delegated: "Delegated (agent to agent)", unattended: "Unattended" };
@@ -121,6 +123,7 @@ export default function App() {
           ? <><strong>Hosted and simulated.</strong> GitHub, CloudWatch, the knowledge base and the backlog are mocks. Policy decisions come from a mock table inside this app that mirrors the Privilege demo, and tokens are mock-issued and unsigned. Your runs are private to this browser session.</>
           : <><strong>Real sign-in.</strong> Tokens come from a real PingFederate login (pi.flow). GitHub, CloudWatch, the knowledge base and the backlog are mocks. Policy decisions come from the local Privilege demo.</>}
       </p>
+      <ReturnLink app="worker-demo" />
       {info.source === "real" && realAuth.checked && realAuth.available && !realAuth.subject && (
         <section className="card" aria-labelledby="real-signin-h">
           <h2 id="real-signin-h">Sign in with PingFederate</h2>
@@ -138,6 +141,7 @@ export default function App() {
       )}
       <header>
         <h1>{customer.brand.name}</h1>
+        <ReturnLink app="worker-demo" variant="header" />
         <ShelfLink />
         <ModeToggle mode={info.mode} realAvailable={info.realAvailable !== false} onChange={changeMode} />
         {info.source === "real" && !realAuth.subject && (
