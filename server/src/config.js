@@ -1,4 +1,4 @@
-import { assertBindAllowed, isLoopbackHost } from './safety.js';
+import { assertBindAllowed, isLoopbackHost, labProxyHosts } from './safety.js';
 
 // All settings come from env (a repo-root .env is loaded in index.js). Everything is loopback-only by default.
 export function config(env = process.env) {
@@ -11,6 +11,8 @@ export function config(env = process.env) {
     allowedOriginHost: (env.ALLOWED_ORIGIN_HOST || '').toLowerCase(),
     workspaceId: env.WORKSPACE_ID || 'default',
     port: Number(env.PORT) || 6700,
+    // LAB_ALLOWED_HOSTS: the family lab-proxy's name(s) for this lab, as the `<name>:<port>` Hosts it sends.
+    proxyHosts: labProxyHosts(env, Number(env.PORT) || 6700),
     // Persona names the stub issuer knows. The utility pack's people (invented): eli, gwen, ben, cora, priya (the approver).
     personas: (env.PERSONAS || 'eli,gwen,ben,cora,priya').split(',').map((s) => s.trim()).filter(Boolean),
     host: env.HOST || '127.0.0.1',

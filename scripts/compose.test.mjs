@@ -43,7 +43,7 @@ test('compose default host port and Dockerfile port are inside 6700-6849 and agr
 
 test('the container may call out only to the names listed in ALLOWED_HOSTS', () => {
   const compose = here('docker-compose.yml');
-  const allowed = /ALLOWED_HOSTS:\s*(\S+)/.exec(compose)[1].split(',');
+  const allowed = /^\s*ALLOWED_HOSTS:\s*(\S+)/m.exec(compose)[1].split(',');
   for (const key of ['PEP_URL', 'MINT_URL']) {
     const host = new URL(new RegExp(`${key}:\\s*(\\S+)`).exec(compose)[1]).hostname;
     assert.ok(allowed.includes(host), `${key} host ${host} must be in ALLOWED_HOSTS`);
@@ -52,4 +52,10 @@ test('the container may call out only to the names listed in ALLOWED_HOSTS', () 
 
 test('docker-compose.yml passes a usable SHELF_URL into the container (the shelf button needs it)', () => {
   assert.match(here('docker-compose.yml'), /^\s*SHELF_URL: \$\{SHELF_URL:-http:\/\/127\.0\.0\.1:4400\}\s*$/m);
+});
+
+test('docker-compose.yml allows the family lab-proxy name by default, never the bare launcher name', () => {
+  const compose = fs.readFileSync(new URL('../docker-compose.yml', import.meta.url), 'utf8');
+  assert.match(compose, /LAB_ALLOWED_HOSTS: \$\{LAB_ALLOWED_HOSTS:-worker-demo\.local\.ping-devops\.com\}\n/);
+  assert.doesNotMatch(compose, /LAB_ALLOWED_HOSTS:[^\n]*[-,]local\.ping-devops\.com\b/);
 });

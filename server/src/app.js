@@ -11,7 +11,7 @@ import { claimSummary } from './tokens.js';
 import { listScenarios } from './scenarios.js';
 import { CHANNELS } from './channels.js';
 import { loadCustomer } from './customer.js';
-import { hostCheck, sameOriginWrites } from './safety.js';
+import { makeHostCheck, sameOriginWrites } from './safety.js';
 import { shelfInfo } from './shelfLink.js';
 
 export const DEMO = { id: 'worker-demo', name: 'Worker Agent Demo', version: '0.3.0' };
@@ -19,8 +19,8 @@ export const DEMO = { id: 'worker-demo', name: 'Worker Agent Demo', version: '0.
 export function createApp({ cfg, now = () => new Date(), fetchImpl }) {
   const app = express();
   app.disable('x-powered-by');
-  app.use(hostCheck);
-  app.use(sameOriginWrites(cfg.allowedOriginHost));
+  app.use(makeHostCheck(cfg.proxyHosts));
+  app.use(sameOriginWrites(cfg.allowedOriginHost, cfg.proxyHosts));
   app.use(express.json({ limit: '100kb' }));
   const customer = loadCustomer();
 
