@@ -16,4 +16,4 @@ Standalone SE demo (tier: Demo, catalog D22/D23, utility skin). A worker agent a
   - mockStack.js is a COPY of the utility pack's decisions. Change one, change the other, and run `npm run smoke` against both modes.
   - The unattended lane mints an agent-subject token (`{agent}`): sub = the agent, no act.
   - The pack's policies ignore token scope. Never claim scope enforcement. A held call is run once by the policy point on approval: the agent must not retry it.
-- Never commit `.env`. Commits end with the Co-Authored-By trailer; the gitleaks pre-commit hook runs on every commit.
+- Never commit `.env`. No AI attribution anywhere (owner, 2026-11-07): no Co-Authored-By trailer and no "Generated with" line in commits, PR bodies or files; CI runs `scripts/check-no-ai-attribution.sh`; the gitleaks pre-commit hook runs on every commit.
