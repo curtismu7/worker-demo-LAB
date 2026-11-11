@@ -20,6 +20,15 @@ const NOTE = { name: "Opened from Customer Agent LAB" };
 afterEach(() => { cleanup(); window.history.replaceState(null, "", "/"); });
 
 describe("return link", () => {
+  it("?from=ai-demo-standalone: strip named for AI Demo Standalone, Back to its fixed proxy path", async () => {
+    window.history.replaceState(null, "", "/worker-demo/?from=ai-demo-standalone&uc=UC12");
+    render(<App />);
+    const note = await screen.findByRole("note", { name: "Opened from AI Demo Standalone" });
+    expect(note.textContent).toContain("UC12");
+    expect(screen.getAllByRole("button", { name: /Back to AI Demo Standalone/ })).toHaveLength(2);
+    expect(returnLinkFor("worker-demo").href).toBe("/ai-demo-standalone/?returned=worker-demo&uc=UC12");
+  });
+
   it("the vendored files match return-link.sha256, which names the parent commit", () => {
     const dir = path.join(process.cwd(), "src", "return-link");
     const text = fs.readFileSync(path.join(dir, "return-link.sha256"), "utf8");
