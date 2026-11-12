@@ -64,6 +64,7 @@ export function createApp({ cfg, now = () => new Date(), fetchImpl }) {
     workspaceId: cfg.mode === 'mock' ? 'per-session' : cfg.workspaceId,
     source: cfg.mode === 'mock' ? 'mock' : 'real',
     realAvailable: realAvailable(),
+    version: (() => { try { return JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version || null; } catch { return null; } })(),
   }));
   // Rule 19: POST /api/mode {source:"mock"|"real"} switches at runtime. Real requires the PEP and issuer URLs to be
   // real URLs (loopback or deliberately allowed); 409 otherwise. A switch keeps each workspace's history.

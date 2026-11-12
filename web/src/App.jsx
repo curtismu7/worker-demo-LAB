@@ -3,7 +3,7 @@ import FlowDiagram from "./FlowDiagram.jsx";
 import ChannelFrame from "./ChannelFrame.jsx";
 import TokenPanel from "./TokenPanel.jsx";
 import { getArm, getChannels, getCustomer, getInfo, getPersonas, getRun, getScenarios, kill, resetServer, resolveRun, setArm, startRun } from "./api.js";
-import ModeToggle from "./ModeToggle.jsx";
+import TopMenu, { applyFontSize } from "./top-menu/TopMenu.jsx";
 import ShelfLink from "./components/ShelfLink.jsx";
 // Opened from Customer Agent LAB (UC38 and UC45 route here): strip below the banner + header Back only; nothing is preselected.
 import ReturnLink from "./return-link/ReturnLink.jsx";
@@ -13,15 +13,21 @@ const LANES = { attended: "Attended", delegated: "Delegated (agent to agent)", u
 const OUTCOME_TEXT = { allow: "Allowed", deny: "Denied", hold: "Held for approval", error: "Error" };
 const STATUS_TEXT = { parked: "waiting for a person", done: "done", failed: "failed", denied: "approval denied", expired: "stopped waiting", cancelled: "cancelled by kill switch", running: "running" };
 const THEME_KEY = "wkd.theme";
-const THEMES = [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]];
+const THEMES = ["auto", "light", "dark"];
 function initialTheme() {
-  try { const t = localStorage.getItem(THEME_KEY); if (t === "light" || t === "dark") return t; } catch { /* storage blocked */ }
+  try { const t = localStorage.getItem(THEME_KEY); if (THEMES.includes(t)) return t; } catch { /* storage blocked */ }
   return "auto";
+}
+const FONT_KEY = "wkd.font";
+function initialFontStep() {
+  try { const f = localStorage.getItem(FONT_KEY); return ["S", "M", "L"].includes(f) ? f : "M"; } catch { return "M"; }
 }
 
 export default function App() {
   const [scenarios, setScenarios] = useState([]);
   const [theme, setTheme] = useState(initialTheme);
+  const [fontStep, setFontStep] = useState(initialFontStep);
+  const [infoVersion, setInfoVersion] = useState(null);
 
   useEffect(() => { if (theme === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = theme; }, [theme]);
 
@@ -29,6 +35,10 @@ export default function App() {
     try { if (next === "auto") localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, next); } catch { /* not remembered */ }
     setTheme(next);
   };
+  useEffect(() => {
+    applyFontSize(fontStep);
+    try { localStorage.setItem(FONT_KEY, fontStep); } catch { /* not remembered */ }
+  }, [fontStep]);
   const [personas, setPersonas] = useState([]);
   const [scenarioId, setScenarioId] = useState("");
   const [persona, setPersona] = useState("");
@@ -74,7 +84,7 @@ export default function App() {
       setScenarioId(s.scenarios[0]?.id ?? ""); setPersona(p.personas.includes(s.scenarios[0]?.persona) ? s.scenarios[0].persona : p.personas[0] ?? "");
     }).catch((e) => setError(e.message));
     getArm().then(setArmState).catch(() => {});
-    getInfo().then((i) => { if (i?.mode) setInfo(i); }).catch(() => {});
+    getInfo().then((i) => { if (i?.mode) setInfo(i); setInfoVersion(i?.version || null); }).catch(() => {});
     Promise.all([getChannels(), getCustomer()]).then(([c, cu]) => { setChannels(Array.isArray(c?.channels) ? c.channels : []); if (cu?.brand?.name) setCustomer(cu); setChannelId(cu?.defaultChannel ?? ""); }).catch(() => {});
     return () => clearTimeout(timer.current);
   }, []);
@@ -142,11 +152,19 @@ export default function App() {
       <header>
         <h1>{customer.brand.name}</h1>
         <ReturnLink app="worker-demo" variant="header" />
-        <ShelfLink />
-        <ModeToggle mode={info.mode} realAvailable={info.realAvailable !== false} onChange={changeMode} />
-        {info.source === "real" && !realAuth.subject && (
-          <button type="button" className="header-signin" onClick={() => document.getElementById("real-signin-h")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Sign in</button>
-        )}
+        <TopMenu
+          mode={{ value: info.mode === "mock" ? "mock" : "real", onChange: changeMode, realAvailable: info.realAvailable !== false, realHint: "Real needs the Privilege demo's MCP door (PEP_URL) and its stub issuer (MINT_URL). Set them in the shared settings file." }}
+          theme={{ value: theme, onChange: pickTheme }}
+          fontSize={{ value: fontStep, onChange: setFontStep }}
+          present={{ active: presenter, onToggle: () => setPresenter((p) => !p), label: "Presenter (P)" }}
+          help={{ href: "https://github.com/curtismu7/worker-demo-LAB#readme" }}
+          version={infoVersion}
+          onReset={onReset}
+          showSignIn={info.source === "real" && realAuth.checked && realAuth.available && !realAuth.subject}
+          signedIn={{ subject: info.source === "real" ? realAuth.subject : null, onSignIn: () => document.getElementById("real-signin-h")?.scrollIntoView({ behavior: "smooth", block: "start" }), onSignOut: () => setRealAuth((a) => ({ ...a, subject: null })) }}
+        >
+          <ShelfLink />
+        </TopMenu>
         <p className="lede">An agent acts for a signed-in person. Every tool call it makes goes through the Privilege policy enforcement point, which allows it, denies it, or holds it for a human. <strong>Mock mode:</strong> GitHub, the knowledge base and the backlog are simulated.</p>
       </header>
 

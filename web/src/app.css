@@ -1,6 +1,8 @@
 :root { --font-size-sm: 0.875rem; --radius-md: 8px; --space: 16px; }
+html { font-size: var(--fs, 16px); }
 /* The shared sheet gives the body its 16px side gutter, so the page only adds vertical space. */
 .page { max-width: 1100px; margin: 0 auto; padding: var(--space) 0; }
+header { position: relative; }
 h1 { margin: 0 0 4px; } .lede, .blurb, .claims { color: var(--muted); }
 .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin: var(--space) 0 8px; }
 .controls label { display: flex; flex-direction: column; font-size: var(--font-size-sm); color: var(--muted); gap: 4px; min-width: 0; }

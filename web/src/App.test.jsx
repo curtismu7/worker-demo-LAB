@@ -25,7 +25,7 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByText("github.read_pr")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByText("Denied")).toBeInTheDocument(), { timeout: 3000 });
     expect(screen.getByText(/forbid-merge/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+    fireEvent.click(screen.getByTestId("reset"));
     expect(screen.queryByText("github.read_pr")).not.toBeInTheDocument();
   });
 
@@ -157,10 +157,9 @@ describe("mode toggle", () => {
     });
     render(<App />);
     await waitFor(() => expect(screen.getByRole("heading", { name: "Acme Power" })).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByTestId("mode-mock")).toHaveAttribute("aria-pressed", "true"));
-    fireEvent.click(screen.getByTestId("mode-real"));
-    await waitFor(() => expect(screen.getByTestId("mode-real")).toHaveAttribute("aria-pressed", "true"));
-    expect(screen.getByTestId("mode-mock")).toHaveAttribute("aria-pressed", "false");
+    await waitFor(() => expect(screen.getByTestId("mode-select")).toHaveValue("mock"));
+    fireEvent.change(screen.getByTestId("mode-select"), { target: { value: "real" } });
+    await waitFor(() => expect(screen.getByTestId("mode-select")).toHaveValue("real"));
   });
 
   it("Real is disabled with a title when the server reports realAvailable: false", async () => {
@@ -168,7 +167,7 @@ describe("mode toggle", () => {
       url === "/api/info" ? { mode: "mock", hosted: true, simulated: true, realAvailable: false } : url === "/api/scenarios" ? { scenarios: [] } : url === "/api/personas" ? { personas: [] }
         : url === "/api/customer" ? { brand: { name: "Acme Power" }, defaultChannel: "teams", vocabulary: {} } : {}) }));
     render(<App />);
-    await waitFor(() => expect(screen.getByTestId("mode-real")).toBeDisabled());
-    expect(screen.getByTestId("mode-real")).toHaveAttribute("title");
+    await waitFor(() => expect(screen.getByTestId("mode-select").querySelector('option[value="real"]')).toBeDisabled());
+    expect(screen.getByTestId("mode-select").querySelector('option[value="real"]')).toHaveAttribute("title");
   });
 });
