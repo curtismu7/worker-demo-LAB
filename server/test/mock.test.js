@@ -63,7 +63,8 @@ describe('MODE=mock end to end (no network, no other service)', () => {
 
   it('reports what it is: mode, simulated, per-session workspace', async () => {
     const res = await request(mockApp({ WORKER_HOSTED: '1' })).get('/api/info');
-    expect(res.body).toEqual({ mode: 'mock', hosted: true, simulated: true, workspaceId: 'per-session', source: 'mock', realAvailable: false });
+    // /api/info also carries the app version for the TopMenu; the rule 19 fields are the contract.
+    expect(res.body).toEqual({ mode: 'mock', hosted: true, simulated: true, workspaceId: 'per-session', source: 'mock', realAvailable: false, version: expect.any(String) });
   });
 });
 
