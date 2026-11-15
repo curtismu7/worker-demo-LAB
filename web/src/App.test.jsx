@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import App from "./App.jsx";
 import { buildGraph } from "./FlowDiagram.jsx";
+import { setJsonView } from "./components/JsonPane.jsx";
 
 vi.mock("@xyflow/react", () => ({ ReactFlow: () => null, Background: () => null, Controls: () => null, useNodesState: (x) => [x, () => {}, () => {}], useEdgesState: (x) => [x, () => {}, () => {}] }));
 
@@ -129,6 +130,14 @@ describe("channel, presenter and tokens", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
     await waitFor(() => expect(screen.getByText("aaa.bbb.ccc")).toBeInTheDocument(), { timeout: 3000 });
     expect(screen.getByText(/mock-issued/)).toBeInTheDocument();
+    // The decoded claims go through the shared JsonPane: Form | JSON, full view.
+    setJsonView("form");
+    fireEvent.click(screen.getByRole("button", { name: "Form" }));
+    expect(screen.getByRole("group", { name: "Decoded claims" })).toHaveTextContent("worker-agent");
+    expect(screen.getByRole("group", { name: "Decoded claims view" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "JSON" }));
+    expect(screen.getByLabelText("Decoded claims", { selector: "pre" })).toHaveTextContent('"act": "worker-agent"');
+    setJsonView("form");
   });
 });
 
