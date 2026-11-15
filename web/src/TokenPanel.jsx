@@ -1,3 +1,5 @@
+import Json from "./components/JsonPane.jsx";
+
 // Rule 4: tokens are shown raw because this is education. They are mock-issued by a local stub, and labelled as such.
 export default function TokenPanel({ tokens, mock = false }) {
   if (!tokens?.length) return null;
@@ -8,8 +10,8 @@ export default function TokenPanel({ tokens, mock = false }) {
       {tokens.map((t, i) => (
         <details key={i} className="token">
           <summary>{t.claims?.act ? <code>act={t.claims.act}</code> : <code>sub={t.claims?.sub}, no act</code>}{t.scope ? <> <code>scope={t.scope}</code></> : null}</summary>
-          <pre aria-label="Decoded claims">{JSON.stringify(t.claims, null, 2)}</pre>
-          <pre aria-label="Raw token" className="raw">{t.jwt}</pre>
+          <Json value={t.claims} label="Decoded claims" hot={["groups"]} />
+          <Json value={t.jwt} label="Raw token" />
         </details>
       ))}
     </section>
