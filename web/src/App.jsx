@@ -5,6 +5,7 @@ import TokenPanel from "./TokenPanel.jsx";
 import { getArm, getChannels, getCustomer, getInfo, getPersonas, getRun, getScenarios, kill, resetServer, resolveRun, setArm, startRun } from "./api.js";
 import TopMenu, { applyFontSize } from "./top-menu/TopMenu.jsx";
 import ShelfLink from "./components/ShelfLink.jsx";
+import GatewayTrace from "./gateway-trace/GatewayTrace.jsx";
 // Opened from Customer Agent LAB (UC38 and UC45 route here): strip below the banner + header Back only; nothing is preselected.
 import ReturnLink from "./return-link/ReturnLink.jsx";
 
@@ -12,6 +13,18 @@ const SPEEDS = [0.5, 1, 2, 4];
 const LANES = { attended: "Attended", delegated: "Delegated (agent to agent)", unattended: "Unattended" };
 const OUTCOME_TEXT = { allow: "Allowed", deny: "Denied", hold: "Held for approval", error: "Error" };
 const STATUS_TEXT = { parked: "waiting for a person", done: "done", failed: "failed", denied: "approval denied", expired: "stopped waiting", cancelled: "cancelled by kill switch", running: "running" };
+// "What Privilege did" (Rule 25): one exchange per call the server made to the Privilege demo's door, in the order they happened.
+const MOCK_BASIS = "Simulated: this app's in-process copy of the Privilege demo's policy table decided each call, so these decisions are what it computed. It reports the check that decided (the token, then the policy), not every rule inside its table. Real mode shows the actual door.";
+export function exchangesOf(steps) {
+  const list = [];
+  for (const s of steps) {
+    if (s.trace) list.push({ title: `Agent calls ${s.tool}`, trace: s.trace });
+    if (s.refused?.trace) list.push({ title: `${s.refused.by} tries to ${s.refused.decision}: refused`, trace: s.refused.trace });
+    if (s.approvalCall?.trace) list.push({ title: `${s.approvalCall.by} ${s.approvalCall.decision === "approve" ? "approves" : "denies"} the held call`, trace: s.approvalCall.trace });
+  }
+  return list.map((e, n) => ({ ...e, step: n + 1, status: e.trace.response?.status ?? null }));
+}
+
 const THEME_KEY = "wkd.theme";
 const THEMES = ["auto", "light", "dark"];
 function initialTheme() {
@@ -104,7 +117,10 @@ export default function App() {
   async function onResolve(decision) {
     const before = run.steps.length;
     setBusy(true); setError("");
-    try { const r = await resolveRun(run.id, decision, approver); setRun(r); play(r.steps.length, before); } catch (e) { setError(e.message); } finally { setBusy(false); }
+    try { const r = await resolveRun(run.id, decision, approver); setRun(r); play(r.steps.length, before); } catch (e) {
+      setError(e.message);
+      getRun(run.id).then((r) => setRun(r)).catch(() => {}); // the refused attempt is in the run's trace
+    } finally { setBusy(false); }
   }
   async function onKill() {
     setError("");
@@ -255,6 +271,7 @@ export default function App() {
               </li>
             ))}
           </ol>
+          <GatewayTrace exchanges={exchangesOf(steps.slice(0, shown))} source={info.mode === "mock" ? "mock" : "real"} basisNote={info.mode === "mock" ? MOCK_BASIS : undefined} />
         </section>
       )}
       {run && <TokenPanel tokens={run.tokens} mock={info.mode === "mock"} />}

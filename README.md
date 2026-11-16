@@ -53,6 +53,10 @@ Docker (OrbStack): `HOST_PORT=6700 docker compose up --build -d`. The container 
 
 Port range for this repo: 6700-6849.
 
+## What Privilege did
+
+Under each run, the Trace section has a **What Privilege did** panel: for every call the agent makes to the Privilege demo's door (and for the approver's decision on a held call), the exact request, the exact response and the decisions in between. In Mock the in-process door computed them (marked checked; it reports the check that decided, the token and then the policy, not every rule inside its table). In Real the Privilege demo answers with a status and a body, so the decisions are read from the reply (observed) or from the outcome (inferred). Tokens are shortened or reduced to their length in the trace.
+
 ## No other service needed: MODE=mock
 
 `MODE=mock npm start` runs the whole demo in one process (built-in mock issuer and policy table). Each browser session is its own workspace. This is also what the SE k8s build runs (`k8s/`, `k8s/deploy.sh`; the first deploy is owner-approved).

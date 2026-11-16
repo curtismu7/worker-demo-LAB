@@ -105,8 +105,14 @@ export function createRunner({ cfg, fetchImpl = fetch, now = () => new Date() })
 
     const approverToken = await mintToken({ mintUrl: cfg.mintUrl, persona: approver, fetchImpl });
     const res = await decideApproval({ pepUrl: cfg.pepUrl, token: approverToken, approvalId: held.approvalId, verb: decision, fetchImpl });
-    if (!res.ok) throw Object.assign(new Error(res.reason), { code: res.error });
+    if (!res.ok) {
+      // The refused call is shown too (a person deciding their own call is a teaching moment); the route replies with the error, the page re-reads the run.
+      if (res.trace) held.refused = { decision, by: approver, reason: res.reason, trace: res.trace };
+      throw Object.assign(new Error(res.reason), { code: res.error });
+    }
+    delete held.refused;
     held.resolution = { decision, by: approver };
+    if (res.trace) held.approvalCall = { decision, by: approver, trace: res.trace };
     if (decision === 'deny') { run.status = 'denied'; run.parkedAt = null; ctxs.delete(id); return run; }
 
     // Approved: the Privilege demo runs the held call itself, once, at the moment of approval (privilege-demo pep.resolve). The agent does
