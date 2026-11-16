@@ -5,6 +5,7 @@ import TokenPanel from "./TokenPanel.jsx";
 import { getArm, getChannels, getCustomer, getInfo, getPersonas, getRun, getScenarios, kill, resetServer, resolveRun, setArm, startRun } from "./api.js";
 import TopMenu, { applyFontSize } from "./top-menu/TopMenu.jsx";
 import ShelfLink from "./components/ShelfLink.jsx";
+import VerifyMark from "./components/VerifyMark.jsx";
 import GatewayTrace from "./gateway-trace/GatewayTrace.jsx";
 // Opened from Customer Agent LAB (UC38 and UC45 route here): strip below the banner + header Back only; nothing is preselected.
 import ReturnLink from "./return-link/ReturnLink.jsx";
@@ -170,6 +171,7 @@ export default function App() {
         >
           <ReturnLink app="worker-demo" variant="header" />
           <ShelfLink />
+          <VerifyMark id="worker-demo" />
         </TopMenu>
       </header>
     <main id="main" className={`page${presenter ? " presenter" : ""}`}>
