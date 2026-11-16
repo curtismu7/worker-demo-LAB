@@ -101,10 +101,32 @@ describe("parked run", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Run" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
     await waitFor(() => expect(screen.getByRole("group", { name: "Approval needed" })).toBeInTheDocument(), { timeout: 3000 });
+    // One primary per view state: while a person has to decide, Approve is the primary and Run is not.
+    expect([...document.querySelectorAll("button.primary")].map((b) => b.textContent)).toEqual(["Approve"]);
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     await waitFor(() => expect(screen.getByText(/Ran on approval: Allowed/)).toBeInTheDocument(), { timeout: 3000 });
     expect(posts).toEqual([{ decision: "approve", approver: "priya" }]);
     expect(screen.queryByRole("group", { name: "Approval needed" })).not.toBeInTheDocument();
+    expect([...document.querySelectorAll("button.primary")].map((b) => b.textContent)).toEqual(["Run"]);
+  });
+});
+
+describe("shell bar", () => {
+  it("brand, Mock badge, the current page pill and the TopMenu in header.shell-bar; the banner opens <main>; Run is the one primary", async () => {
+    mockApi();
+    const base = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (url, init) => (url === "/api/info" ? { ok: true, status: 200, json: async () => ({ mode: "mock", source: "mock", realAvailable: false }) } : base(url, init)));
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Run" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByTestId("mode-badge")).toHaveTextContent("Mock"));
+    const bar = document.querySelector("header.shell-bar");
+    expect(bar).not.toBeNull();
+    expect(bar.querySelector(".shell-brand h1")).toHaveTextContent("Worker agent demo");
+    expect(bar.querySelector("[data-testid=mode-badge]")).not.toBeNull();
+    expect(bar.querySelector('.shell-nav a[aria-current="page"]')).toHaveTextContent("Worker agent");
+    expect(bar.querySelector("[data-testid=top-menu]")).toHaveClass("shell-right");
+    expect(document.querySelector("main").firstElementChild).toHaveClass("banner");
+    expect([...document.querySelectorAll("button.primary")].map((b) => b.textContent)).toEqual(["Run"]);
   });
 });
 

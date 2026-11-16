@@ -125,9 +125,38 @@ export default function App() {
   const channel = channels.find((c) => c.id === channelId) ?? channels[0];
   const needsArm = sc?.lane === "unattended";
   const onArm = () => setArm(!arm.armed).then(setArmState).catch((e) => setError(e.message));
+  // One primary button per view state (UI patterns section 9): the Real sign-in, then a parked approval, else Run.
+  const needsSignIn = info.source === "real" && realAuth.checked && realAuth.available && !realAuth.subject;
+  const awaitingDecision = run?.status === "parked" && shown >= steps.length;
+  const primaryView = needsSignIn ? "signin" : awaitingDecision ? "decide" : "run";
 
   return (
-    <main className={`page${presenter ? " presenter" : ""}`}>
+    <>
+      <header className="shell-bar">
+        <span className="shell-brand">
+          <span className="shell-logo" aria-hidden="true">WA</span>
+          <h1>{customer.brand.name}</h1>
+          <span className={`shell-badge${info.mode === "mock" ? "" : " shell-badge--real"}`} data-testid="mode-badge">{info.mode === "mock" ? "Mock" : "Real"}</span>
+        </span>
+        <nav className="shell-nav" aria-label="Pages">
+          <a href="#main" aria-current="page">Worker agent</a>
+        </nav>
+        <TopMenu
+          mode={{ value: info.mode === "mock" ? "mock" : "real", onChange: changeMode, realAvailable: info.realAvailable !== false, realHint: "Real needs the Privilege demo's MCP door (PEP_URL) and its stub issuer (MINT_URL). Set them in the shared settings file." }}
+          theme={{ value: theme, onChange: pickTheme }}
+          fontSize={{ value: fontStep, onChange: setFontStep }}
+          present={{ active: presenter, onToggle: () => setPresenter((p) => !p), label: "Presenter (P)" }}
+          help={{ href: "https://github.com/curtismu7/worker-demo-LAB#readme" }}
+          version={infoVersion}
+          onReset={onReset}
+          showSignIn={info.source === "real" && realAuth.checked && realAuth.available && !realAuth.subject}
+          signedIn={{ subject: info.source === "real" ? realAuth.subject : null, onSignIn: () => document.getElementById("real-signin-h")?.scrollIntoView({ behavior: "smooth", block: "start" }), onSignOut: () => setRealAuth((a) => ({ ...a, subject: null })) }}
+        >
+          <ReturnLink app="worker-demo" variant="header" />
+          <ShelfLink />
+        </TopMenu>
+      </header>
+    <main id="main" className={`page${presenter ? " presenter" : ""}`}>
       <p className="banner" role="note">
         {info.mode === "mock"
           ? <><strong>Hosted and simulated.</strong> GitHub, CloudWatch, the knowledge base and the backlog are mocks. Policy decisions come from a mock table inside this app that mirrors the Privilege demo, and tokens are mock-issued and unsigned. Your runs are private to this browser session.</>
@@ -141,7 +170,7 @@ export default function App() {
           <form onSubmit={(e) => { e.preventDefault(); realSignIn(e.target.username.value, e.target.password.value); }} aria-label="Real sign-in">
             <label className="inline">Username<input name="username" type="text" autoComplete="username" required maxLength={256} /></label>
             <label className="inline">Password<input name="password" type="password" autoComplete="current-password" required maxLength={1024} /></label>
-            <button type="submit" className="primary">Sign in</button>
+            <button type="submit" className={primaryView === "signin" ? "primary" : ""}>Sign in</button>
           </form>
           {realAuth.problem && <p role="alert" className="problems">{realAuth.problem}</p>}
         </section>
@@ -149,24 +178,7 @@ export default function App() {
       {info.source === "real" && realAuth.subject && (
         <p className="banner" role="status">Signed in as <strong>{realAuth.subject}</strong> (verified against the PingFederate JWKS at sign-in). Runs use this real token.</p>
       )}
-      <header>
-        <h1>{customer.brand.name}</h1>
-        <ReturnLink app="worker-demo" variant="header" />
-        <TopMenu
-          mode={{ value: info.mode === "mock" ? "mock" : "real", onChange: changeMode, realAvailable: info.realAvailable !== false, realHint: "Real needs the Privilege demo's MCP door (PEP_URL) and its stub issuer (MINT_URL). Set them in the shared settings file." }}
-          theme={{ value: theme, onChange: pickTheme }}
-          fontSize={{ value: fontStep, onChange: setFontStep }}
-          present={{ active: presenter, onToggle: () => setPresenter((p) => !p), label: "Presenter (P)" }}
-          help={{ href: "https://github.com/curtismu7/worker-demo-LAB#readme" }}
-          version={infoVersion}
-          onReset={onReset}
-          showSignIn={info.source === "real" && realAuth.checked && realAuth.available && !realAuth.subject}
-          signedIn={{ subject: info.source === "real" ? realAuth.subject : null, onSignIn: () => document.getElementById("real-signin-h")?.scrollIntoView({ behavior: "smooth", block: "start" }), onSignOut: () => setRealAuth((a) => ({ ...a, subject: null })) }}
-        >
-          <ShelfLink />
-        </TopMenu>
-        <p className="lede">An agent acts for a signed-in person. Every tool call it makes goes through the Privilege policy enforcement point, which allows it, denies it, or holds it for a human. <strong>Mock mode:</strong> GitHub, the knowledge base and the backlog are simulated.</p>
-      </header>
+      <p className="lede">An agent acts for a signed-in person. Every tool call it makes goes through the Privilege policy enforcement point, which allows it, denies it, or holds it for a human. <strong>Mock mode:</strong> GitHub, the knowledge base and the backlog are simulated.</p>
 
       <section className="controls" aria-label="Run controls">
         <label>Scenario
@@ -185,7 +197,7 @@ export default function App() {
         <label>Speed
           <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>{SPEEDS.map((s) => <option key={s} value={s}>{s}x</option>)}</select>
         </label>
-        <button className="primary" onClick={onRun} disabled={busy || !scenarioId || (!needsArm && !persona) || (needsArm && !arm.armed)}>{busy ? "Running…" : "Run"}</button>
+        <button className={primaryView === "run" ? "primary" : ""} onClick={onRun} disabled={busy || !scenarioId || (!needsArm && !persona) || (needsArm && !arm.armed)}>{busy ? "Running…" : "Run"}</button>
         <button onClick={onSimulate} disabled={!run}>Simulate again</button>
         <button onClick={onReset}>Reset</button>
         <label className="shell-theme">Theme
@@ -226,7 +238,7 @@ export default function App() {
               <label>Decide as
                 <select value={approver} onChange={(e) => setApprover(e.target.value)}>{personas.map((p) => <option key={p}>{p}</option>)}</select>
               </label>
-              <button className="primary" disabled={busy} onClick={() => onResolve("approve")}>Approve</button>
+              <button className={primaryView === "decide" ? "primary" : ""} disabled={busy} onClick={() => onResolve("approve")}>Approve</button>
               <button disabled={busy} onClick={() => onResolve("deny")}>Deny</button>
               <button disabled={busy} onClick={() => onResolve("expire")}>Stop waiting</button>
             </div>
@@ -247,5 +259,6 @@ export default function App() {
       )}
       {run && <TokenPanel tokens={run.tokens} mock={info.mode === "mock"} />}
     </main>
+    </>
   );
 }
