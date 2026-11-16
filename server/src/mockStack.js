@@ -83,7 +83,11 @@ export function decide({ groups, tool, args }) {
 
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const decode = (auth) => { try { return JSON.parse(Buffer.from(String(auth).replace(/^Bearer /, '').split('.')[1], 'base64url').toString()); } catch { return null; } };
-const reply = (status, body, headers = {}) => ({ ok: status >= 200 && status < 300, status, headers: { get: (k) => headers[k.toLowerCase()] ?? null }, json: async () => body });
+// `decisions` (optional) are what this simulated door computed for the call: the runner's trace (Rule 25) shows them as "checked".
+const reply = (status, body, headers = {}, decisions) => ({ ok: status >= 200 && status < 300, status, headers: { get: (k) => headers[k.toLowerCase()] ?? null }, json: async () => body, ...(decisions ? { mockDecisions: decisions } : {}) });
+const D = (id, label, outcome, evidence) => ({ id, label, outcome, evidence });
+const tokenSeen = (claims) => D('token', 'Token', 'pass', `the bearer decoded: sub ${claims.sub}${claims.act?.sub ? `, acting through ${claims.act.sub}` : ''}, groups ${(claims.groups ?? []).join(', ') || 'none'}`);
+const tokenRefused = [D('token', 'Token', 'fail', 'the bearer did not decode as a token'), D('policy', 'Policy', 'skipped', 'not reached: the caller was not accepted')];
 const mockResult = (tool, args) => ({ mock: true, tool, ...args, status: 'ok' });
 
 export function createMockFetch({ now = () => new Date() } = {}) {
@@ -110,38 +114,40 @@ export function createMockFetch({ now = () => new Date() } = {}) {
 
     const claims = decode(auth);
     if (u.pathname === '/mcp') {
-      if (!claims) return reply(401, { error: 'invalid_token' });
+      if (!claims) return reply(401, { error: 'invalid_token' }, {}, tokenRefused);
       const { name: tool, arguments: args = {} } = body.params ?? {};
       const d = decide({ groups: claims.groups ?? [], tool, args });
       const tp = `00-${randomUUID().replace(/-/g, '')}-${randomUUID().replace(/-/g, '').slice(0, 16)}-01`;
       const h = { traceparent: tp };
-      if (d.outcome === 'allow') return reply(200, { jsonrpc: '2.0', id: body.id, result: { content: [{ type: 'text', text: JSON.stringify(mockResult(tool, args)) }] } }, h);
+      const seen = [tokenSeen(claims), D('policy', 'Policy', d.outcome === 'allow' ? 'pass' : d.outcome === 'hold' ? 'info' : 'fail', `${d.outcome} by ${d.rule}: ${d.reason}`)];
+      if (d.outcome === 'allow') return reply(200, { jsonrpc: '2.0', id: body.id, result: { content: [{ type: 'text', text: JSON.stringify(mockResult(tool, args)) }] } }, h, seen);
       const data = { decision: d.outcome, rule: d.rule, reason: d.reason };
       if (d.outcome === 'hold') {
         const id = randomUUID();
         approvals.set(id, { id, status: 'pending', tool, args, requester: { sub: claims.sub, actor: claims.act?.sub ?? null }, policy: { rule: d.rule, reason: d.reason }, approvers: d.approvers, permit: d.permit, groups: claims.groups });
         Object.assign(data, { approvalId: id, approvers: d.approvers });
       }
-      return reply(200, { jsonrpc: '2.0', id: body.id, error: { code: d.outcome === 'hold' ? -32004 : -32003, message: d.outcome === 'hold' ? 'held for approval' : 'denied by policy', data } }, h);
+      return reply(200, { jsonrpc: '2.0', id: body.id, error: { code: d.outcome === 'hold' ? -32004 : -32003, message: d.outcome === 'hold' ? 'held for approval' : 'denied by policy', data } }, h, seen);
     }
 
     const m = u.pathname.match(/^\/api\/approvals\/([\w-]+)\/(approve|deny)$/);
     if (m) {
-      if (!claims) return reply(401, { error: 'invalid_token' });
+      const approval = (outcome, evidence) => [claims ? tokenSeen(claims) : tokenRefused[0], D('approval', 'Approval', outcome, evidence)];
+      if (!claims) return reply(401, { error: 'invalid_token' }, {}, [tokenRefused[0], D('approval', 'Approval', 'skipped', 'not reached: the caller was not accepted')]);
       const rec = approvals.get(m[1]);
-      if (!rec) return reply(404, { error: 'not_found' });
+      if (!rec) return reply(404, { error: 'not_found' }, {}, approval('fail', 'no such approval for this caller'));
       // Mirrors the real pack: an approval is visible only to its approvers and its requester (anyone else gets 404);
       // among those, the requester cannot decide their own call (403).
-      if (claims.sub !== rec.requester.sub && !rec.approvers.includes(claims.sub)) return reply(404, { error: 'not_found' });
-      if (claims.sub === rec.requester.sub) return reply(403, { error: 'not_an_approver' });
-      if (rec.status !== 'pending') return reply(409, { error: 'already_decided' });
+      if (claims.sub !== rec.requester.sub && !rec.approvers.includes(claims.sub)) return reply(404, { error: 'not_found' }, {}, approval('fail', 'no such approval for this caller (only its approvers and requester can see it)'));
+      if (claims.sub === rec.requester.sub) return reply(403, { error: 'not_an_approver' }, {}, approval('fail', 'the person whose call it is cannot decide it'));
+      if (rec.status !== 'pending') return reply(409, { error: 'already_decided' }, {}, approval('fail', `already ${rec.status}`));
       rec.status = m[2] === 'approve' ? 'approved' : 'denied';
       rec.decidedBy = claims.sub;
       // On approval the policy point runs the held call itself, once (as the real pack does).
       rec.outcome = m[2] === 'approve' ? { decision: 'allow', rule: rec.permit, reason: 'Permitted after approval', executed: true, result: mockResult(rec.tool, rec.args) }
         : { decision: 'deny', rule: rec.policy.rule, reason: `Denied by ${claims.sub}`, executed: false };
       const { permit, groups, ...view } = rec;
-      return reply(200, view);
+      return reply(200, view, {}, approval('pass', `${rec.status} by ${claims.sub}${rec.outcome.executed ? '; the held call ran once' : '; the held call did not run'}`));
     }
     return reply(404, { error: 'not_found' });
   };

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
-import App from "./App.jsx";
+import App, { exchangesOf } from "./App.jsx";
 import { buildGraph } from "./FlowDiagram.jsx";
 import { setJsonView } from "./components/JsonPane.jsx";
 
@@ -200,5 +200,39 @@ describe("mode toggle", () => {
     render(<App />);
     await waitFor(() => expect(screen.getByTestId("mode-select").querySelector('option[value="real"]')).toBeDisabled());
     expect(screen.getByTestId("mode-select").querySelector('option[value="real"]')).toHaveAttribute("title");
+  });
+});
+
+describe("What Privilege did (Rule 25)", () => {
+  const trace = (source, status, rule) => ({
+    source,
+    request: { method: "POST", url: "http://mock.invalid/mcp", headers: { "content-type": "application/json" }, body: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "github.merge_pr", arguments: {} } } },
+    response: { status, headers: {}, body: { jsonrpc: "2.0", id: 1, error: { code: -32003, message: "denied by policy", data: { rule } } } },
+    decisions: [{ id: "policy", label: "Policy", outcome: "fail", basis: source === "mock" ? "checked" : "observed", evidence: `deny by ${rule}` }],
+    record: null,
+  });
+  const TRACED = { id: "r1", status: "parked", persona: "mark", unattended: false, claims: { sub: "mark", act: "worker-agent", groups: [] },
+    steps: [{ index: 0, tool: "github.merge_pr", outcome: "deny", expected: "deny", asDesigned: true, rule: "u20", note: "n", trace: trace("mock", 200, "u20") },
+      { index: 1, tool: "backlog.update_story", outcome: "hold", expected: "hold", asDesigned: true, approvalId: "A1", approvers: ["priya"], note: "n", trace: trace("mock", 200, "u30"),
+        refused: { decision: "approve", by: "mark", reason: "no", trace: { ...trace("mock", 403, "x"), request: { method: "POST", url: "http://mock.invalid/api/approvals/A1/approve", headers: {}, body: {} } } } }] };
+
+  it("numbers one exchange per call in order: the call, the refused approval, the approval", () => {
+    const withApproval = [{ ...TRACED.steps[1], approvalCall: { decision: "approve", by: "priya", trace: trace("mock", 200, "u30") } }];
+    expect(exchangesOf(withApproval).map((e) => [e.step, e.title, e.status])).toEqual([
+      [1, "Agent calls backlog.update_story", 200], [2, "mark tries to approve: refused", 403], [3, "priya approves the held call", 200]]);
+    expect(exchangesOf([{ tool: "x", outcome: "allow" }])).toEqual([]);
+  });
+
+  it("shows the panel under the run, with the mock basis, after a Run", async () => {
+    globalThis.fetch = vi.fn(async (url) => ({ ok: true, status: 200, json: async () => (url === "/api/scenarios" ? { scenarios: [{ id: "s", title: "S", blurb: "", lane: "attended", stepCount: 2 }] } : url === "/api/personas" ? { personas: ["mark", "priya"] } : url === "/api/arm" ? { armed: false } : url === "/api/info" ? { mode: "mock", source: "mock" } : TRACED) }));
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Run" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() => expect(screen.getByTestId("trace-3")).toBeInTheDocument(), { timeout: 4000 });
+    expect(screen.getByTestId("gateway-trace")).toBeInTheDocument();
+    expect(screen.getByTestId("gateway-trace-basis")).toHaveTextContent(/Simulated: this app's in-process copy/);
+    expect(screen.getByTestId("trace-1")).toHaveTextContent("Agent calls github.merge_pr");
+    expect(screen.getByTestId("trace-1")).toHaveTextContent("deny by u20");
+    expect(screen.getByTestId("trace-3")).toHaveTextContent("mark tries to approve: refused");
   });
 });
