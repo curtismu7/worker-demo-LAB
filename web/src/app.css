@@ -27,6 +27,8 @@ html { font-size: var(--fs, 16px); }
 .node-allow { border-color: var(--status-ok); } .node-hold { border-color: var(--status-warn); }
 .node-deny, .node-error { background: var(--box-red); border-color: var(--on-box); }
 .steps { list-style: none; padding: 0; display: grid; gap: 8px; }
+.step-num { display: inline-grid; place-items: center; min-width: 1.4rem; height: 1.4rem; border-radius: 999px;
+  background: var(--accent-gradient); color: var(--on-accent); font: 700 0.75rem var(--font-mono); margin-right: 0.5em; vertical-align: 2px; }
 .step { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 10px 12px; border-radius: var(--radius-md); background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--border); min-width: 0; }
 .step-allow { border-left-color: var(--status-ok); } .step-deny, .step-error { border-left-color: var(--danger-text); } .step-hold { border-left-color: var(--status-warn); }
 .note { color: var(--muted); } .why { flex-basis: 100%; font-size: var(--font-size-sm); color: var(--muted); } .surprise { color: var(--danger-text); }
