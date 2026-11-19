@@ -260,7 +260,7 @@ export default function App() {
 
       {run && (
         <section aria-label="Run trace">
-          <h2>Trace <span className={`status status-${run.status}`}>{STATUS_TEXT[run.status] ?? run.status}</span></h2>
+          <h2><span className="step-num" aria-hidden="true">1</span>Trace <span className={`status status-${run.status}`}>{STATUS_TEXT[run.status] ?? run.status}</span></h2>
           <p className="claims">{run.unattended ? "Unattended: no person in the session. " : ""}Token: <code>sub={run.claims?.sub}</code> <code>act={run.claims?.act ?? "none"}</code> <code>groups={(run.claims?.groups ?? []).join(",") || "none"}</code></p>
           {run.status === "parked" && shown >= steps.length && (
             <div className="approval" role="group" aria-label="Approval needed">
