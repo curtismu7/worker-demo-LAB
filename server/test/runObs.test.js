@@ -11,13 +11,14 @@ const jwt = (c) => `h.${Buffer.from(JSON.stringify(c)).toString('base64url')}.s`
 const HOLD = 'backlog.update_story';
 const clockFrom = () => { let t = 0; return () => new Date(Date.UTC(2026, 10, 23, 10, 0, 0) + (t++) * 1000); };
 
-function door({ down = false, approvalsDown = false } = {}) {
+function door({ down = false, approvalsDown = false, approverRefused = false } = {}) {
   return async (url, init) => {
     const u = String(url);
     const b = JSON.parse(init.body || '{}');
     if (u.endsWith('/mint')) return { ok: true, status: 200, json: async () => ({ access_token: jwt({ sub: b.agent ?? b.persona, exp: 9999999999, ...(b.act ? { act: { sub: b.act } } : {}) }) }) };
     if (down) throw new Error('connect ECONNREFUSED 127.0.0.1:4510');
     if (approvalsDown && u.includes('/api/approvals/')) throw new Error('connect ECONNREFUSED 127.0.0.1:4510');
+    if (approverRefused && u.includes('/api/approvals/')) return { ok: false, status: 403, json: async () => ({ error: 'not_an_approver' }) };
     const m = u.match(/\/api\/approvals\/([\w-]+)\/(approve|deny)$/);
     if (m) return { ok: true, status: 200, json: async () => ({ id: m[1], outcome: { decision: m[2] === 'approve' ? 'allow' : 'deny', executed: m[2] === 'approve', rule: 'hold' } }) };
     const t = b.params.name;
@@ -142,6 +143,20 @@ describe('the record of one run', () => {
     expect(rec.rows.filter((x) => x.detail?.cause === 'answer-not-accepted' || x.detail?.cause === 'no-reply')).toHaveLength(0);
     expect(out.filter((l) => /result=no-reply/.test(l))).toHaveLength(1);
     expect(out.at(-1)).toMatch(/ layer=privilege actor=priya result=no-reply cause=no-reply run=/);
+  });
+
+  it('a refused approval answer is information, never a stop: the page shows it as refused, the line says unclear, and the summary counts no refusal for it', async () => {
+    const out = [];
+    const r = runner({ mode: 'local', fetchImpl: door({ approverRefused: true }), write: (l) => out.push(l) });
+    const run = await r.start({ scenario: 'sprint-planning', persona: 'ben' });
+    await expect(r.resolve(run.id, { decision: 'approve', approver: 'priya' })).rejects.toMatchObject({ code: 'not_an_approver' });
+    expect(run.steps.at(-1).refused).toMatchObject({ decision: 'approve', by: 'priya' });
+    expect(run.steps.at(-1).noReply).toBeUndefined();
+    const rec = await runRecord(run, { clock: Date.now });
+    expect(assertRunObservability(rec)).toEqual([]);
+    expect(rec.rows.find((x) => x.detail?.cause === 'answer-not-accepted')).toMatchObject({ outcome: 'info' });
+    expect(rec.summary.refused).toBe(0);
+    expect(out.at(-1)).toMatch(/ layer=privilege actor=priya result=unclear cause=answer-not-accepted run=/);
   });
 
   it('a throwing writer changes neither the run nor its record, and names only the error code', async () => {
