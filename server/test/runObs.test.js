@@ -11,12 +11,13 @@ const jwt = (c) => `h.${Buffer.from(JSON.stringify(c)).toString('base64url')}.s`
 const HOLD = 'backlog.update_story';
 const clockFrom = () => { let t = 0; return () => new Date(Date.UTC(2026, 10, 23, 10, 0, 0) + (t++) * 1000); };
 
-function door({ down = false } = {}) {
+function door({ down = false, approvalsDown = false } = {}) {
   return async (url, init) => {
     const u = String(url);
     const b = JSON.parse(init.body || '{}');
     if (u.endsWith('/mint')) return { ok: true, status: 200, json: async () => ({ access_token: jwt({ sub: b.agent ?? b.persona, exp: 9999999999, ...(b.act ? { act: { sub: b.act } } : {}) }) }) };
     if (down) throw new Error('connect ECONNREFUSED 127.0.0.1:4510');
+    if (approvalsDown && u.includes('/api/approvals/')) throw new Error('connect ECONNREFUSED 127.0.0.1:4510');
     const m = u.match(/\/api\/approvals\/([\w-]+)\/(approve|deny)$/);
     if (m) return { ok: true, status: 200, json: async () => ({ id: m[1], outcome: { decision: m[2] === 'approve' ? 'allow' : 'deny', executed: m[2] === 'approve', rule: 'hold' } }) };
     const t = b.params.name;
@@ -47,6 +48,26 @@ describe('stdout lines are read by no shared matcher', () => {
   it('a typed name the lab does not know is written as other, and its text never reaches a line', () => {
     expect(actorOf('token-thief', ['eli', 'delivery-agent'])).toBe('other');
     expect(actorOf('eli', ['eli', 'delivery-agent'])).toBe('eli');
+  });
+
+  it('a roster name with a space and an equals sign is sanitised on the actor field, so it cannot add a second key=value pair', () => {
+    const unsafe = 'eli result=passed x';
+    const line = decisionLine({ at: '2026-11-23T10:00:00.000Z', layer: 'privilege', who: unsafe, outcome: 'info', cause: 'approved', step: 1 }, 'run-1');
+    expect(line).toMatch(/^\S+ worker-demo decision step=1 layer=privilege actor=\S+ result=unclear cause=approved run=run-1$/);
+    expect(line.split(' result=')).toHaveLength(2);
+    expect(classify(line)).toBeNull();
+  });
+
+  it('a configured persona with unsafe characters is written as a sanitised actor on every line of a run', async () => {
+    const out = [];
+    const r = createRunner({ cfg: config({ PERSONAS: 'eli,ada x=1' }), fetchImpl: door(), now: clockFrom(), log: createRunLog({ write: (l) => out.push(l) }) });
+    await r.start({ scenario: 'code-review', persona: 'ada x=1' });
+    expect(out.length).toBeGreaterThan(0);
+    for (const l of out) {
+      expect(l).toMatch(/ actor=\S+ result=\S+ cause=\S+ run=\S+$/);
+      expect(l.split(' result=')).toHaveLength(2);
+      expect(classify(l)).toBeNull();
+    }
   });
 });
 
@@ -103,6 +124,21 @@ describe('the record of one run', () => {
     expect(rec.rows.filter((x) => x.layer === 'privilege' && x.at !== null)).toHaveLength(0);
     expect(rec.reasons.privilege).toMatch(/partial/);
     expect(out.some((l) => /result=no-reply/.test(l))).toBe(true);
+  });
+
+  it('an approval answer that got no reply is a no-reply line, not an information row, and the record is partial', async () => {
+    const out = [];
+    const r = runner({ mode: 'local', fetchImpl: door({ approvalsDown: true }), write: (l) => out.push(l) });
+    const run = await r.start({ scenario: 'sprint-planning', persona: 'ben' });
+    expect(run.status).toBe('parked');
+    await expect(r.resolve(run.id, { decision: 'approve', approver: 'priya' })).rejects.toMatchObject({ code: 'pep_down' });
+    expect(run.obs.noReplies).toBe(1);
+    const rec = await runRecord(run, { clock: Date.now });
+    expect(assertRunObservability(rec)).toEqual([]);
+    expect(rec.reasons.privilege).toMatch(/partial/);
+    expect(rec.rows.filter((x) => x.detail?.cause === 'answer-not-accepted' || x.detail?.cause === 'no-reply')).toHaveLength(0);
+    expect(out.filter((l) => /result=no-reply/.test(l))).toHaveLength(1);
+    expect(out.at(-1)).toMatch(/ layer=privilege actor=priya result=no-reply cause=no-reply run=/);
   });
 
   it('a throwing writer changes neither the run nor its record, and names only the error code', async () => {

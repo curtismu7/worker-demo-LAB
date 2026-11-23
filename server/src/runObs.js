@@ -68,8 +68,10 @@ export function startEvents({ at, persona, unattended, mock, roster }) {
 }
 
 // An approval answer (or the Privilege demo's refusal of one). Information: a person's answer is not a policy decision.
-export function approvalEvent({ at, approver, roster, verb, ok, index }) {
+// An answer that got no reply (the Privilege demo did not connect or timed out) is a no-reply event: no row, a no-reply line, and the record is partial.
+export function approvalEvent({ at, approver, roster, verb, ok, error, index }) {
   const base = { at, layer: 'privilege', product: 'Privilege demo approvals', step: index + 1, who: actorOf(approver, roster), outcome: 'info' };
+  if (!ok && error === 'pep_down') return { ...base, noReply: true, cause: 'no-reply', message: `The Privilege demo did not answer ${approver}'s answer, so the held call is still waiting.` };
   if (!ok) return { ...base, cause: 'answer-not-accepted', message: `The Privilege demo did not accept ${approver}'s answer, so the held call is still waiting.` };
   if (verb === 'approve') return { ...base, cause: 'approved', message: `${approver} approved the held call. An approval is a person's answer, not a policy decision.` };
   return { ...base, cause: 'approval-declined', message: `${approver} denied the held call, so it does not run.` };

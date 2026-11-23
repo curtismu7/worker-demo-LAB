@@ -116,7 +116,7 @@ export function createRunner({ cfg, fetchImpl = fetch, now = () => new Date(), l
     const res = await decideApproval({ pepUrl: cfg.pepUrl, token: approverToken, approvalId: held.approvalId, verb: decision, fetchImpl });
     const at = now().toISOString();
     if (!res.ok) {
-      keepEvents(run, [approvalEvent({ at, approver, roster: roster(), verb: decision, ok: false, index: held.index })], log);
+      keepEvents(run, [approvalEvent({ at, approver, roster: roster(), verb: decision, ok: false, error: res.error, index: held.index })], log);
       // The refused call is shown too (a person deciding their own call is a teaching moment); the route replies with the error, the page re-reads the run.
       if (res.trace) held.refused = { decision, by: approver, reason: res.reason, trace: res.trace };
       throw Object.assign(new Error(res.reason), { code: res.error });
