@@ -288,7 +288,7 @@ export default function App() {
             ))}
           </ol>
           <GatewayTrace exchanges={exchangesOf(steps.slice(0, shown))} source={info.mode === "mock" ? "mock" : "real"} basisNote={info.mode === "mock" ? MOCK_BASIS : undefined} />
-          {shown >= steps.length && <RunObs source={info.mode === "mock" ? "mock" : "real"} runId={run.id} stamp={`${run.status}|${steps.length}`} />}
+          {shown >= steps.length && <RunObs source={info.mode === "mock" ? "mock" : "real"} runId={run.id} stamp={`${run.status}|${steps.length}|${steps.at(-1)?.noReply ? "no-reply" : ""}|${steps.at(-1)?.refused ? "refused" : ""}`} />}
         </section>
       )}
       {run && <TokenPanel tokens={run.tokens} mock={info.mode === "mock"} />}

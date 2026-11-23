@@ -109,6 +109,31 @@ describe("parked run", () => {
     expect(screen.queryByRole("group", { name: "Approval needed" })).not.toBeInTheDocument();
     expect([...document.querySelectorAll("button.primary")].map((b) => b.textContent)).toEqual(["Run"]);
   });
+
+  // Rule 27 (W1): after a no-reply or a refused approval the run's status and step count do not change, so the panel must still
+  // re-read its record. Otherwise the panel keeps showing the record from before the answer.
+  it("a no-reply approval re-reads the panel's record, so the no-reply is shown and the old record is not", async () => {
+    const LAYER_IDS = ["person", "agent", "authorize", "privilege", "gateway", "resource"];
+    const recordFor = (privilegeReason) => ({ runId: "r1", window: { from: "2026-11-23T10:00:00.000Z", to: "2026-11-23T10:00:05.000Z" }, source: "real", excerpt: true, truncated: false, rows: [],
+      coverage: Object.fromEntries(LAYER_IDS.map((l) => [l, "not-logged"])), reasons: { ...Object.fromEntries(LAYER_IDS.map((l) => [l, "No row in this run."])), privilege: privilegeReason },
+      partial: {}, summary: { allowed: 0, refused: 0, blocked: 0, info: 0, unverified: 0 } });
+    const NO_REPLY = "1 call got no reply from the Privilege demo (it did not connect, or it timed out), so it has no row: the record is partial.";
+    let answered = false;
+    const recordCalls = [];
+    globalThis.fetch = vi.fn(async (url, init) => {
+      if (url.startsWith("/api/run-observability")) { recordCalls.push(url); return { ok: true, status: 200, json: async () => ({ record: recordFor(answered ? NO_REPLY : "No row in this run.") }) }; }
+      if (init?.method === "POST" && url.includes("/resolve")) { answered = true; return { ok: false, status: 502, json: async () => ({ error: "pep_down", message: "The Privilege demo did not answer." }) }; }
+      const parked = { ...PARKED, steps: [{ ...PARKED.steps[0], ...(answered ? { noReply: { decision: "approve", by: "priya" } } : {}) }] };
+      return { ok: true, status: 200, json: async () => (url === "/api/scenarios" ? { scenarios: [{ id: "s", title: "S", blurb: "", lane: "attended", stepCount: 1 }] } : url === "/api/personas" ? { personas: ["mark", "priya"] } : url === "/api/arm" ? { armed: false } : parked) };
+    });
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Run" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() => expect(screen.getByRole("group", { name: "Approval needed" })).toBeInTheDocument(), { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(recordCalls.length).toBeGreaterThanOrEqual(2), { timeout: 3000 });
+    await waitFor(() => expect(screen.getByTestId("ro-reason-privilege")).toHaveTextContent("got no reply"), { timeout: 3000 });
+  });
 });
 
 describe("shell bar", () => {
