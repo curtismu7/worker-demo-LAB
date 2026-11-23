@@ -223,6 +223,13 @@ describe("What Privilege did (Rule 25)", () => {
     expect(exchangesOf([{ tool: "x", outcome: "allow" }])).toEqual([]);
   });
 
+  it("a no-reply approval is a no-reply exchange, never a refusal", () => {
+    const noReply = [{ ...TRACED.steps[1], refused: undefined, noReply: { decision: "approve", by: "priya", trace: { ...trace("mock", null, "x"), response: null } } }];
+    const list = exchangesOf(noReply);
+    expect(list.map((e) => [e.step, e.title, e.status])).toEqual([[1, "Agent calls backlog.update_story", 200], [2, "priya tries to approve: no reply from the Privilege demo", null]]);
+    expect(list.some((e) => /refused/.test(e.title))).toBe(false);
+  });
+
   it("shows the panel under the run, with the mock basis, after a Run", async () => {
     globalThis.fetch = vi.fn(async (url) => ({ ok: true, status: 200, json: async () => (url === "/api/scenarios" ? { scenarios: [{ id: "s", title: "S", blurb: "", lane: "attended", stepCount: 2 }] } : url === "/api/personas" ? { personas: ["mark", "priya"] } : url === "/api/arm" ? { armed: false } : url === "/api/info" ? { mode: "mock", source: "mock" } : TRACED) }));
     render(<App />);

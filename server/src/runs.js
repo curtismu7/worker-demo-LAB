@@ -117,11 +117,14 @@ export function createRunner({ cfg, fetchImpl = fetch, now = () => new Date(), l
     const at = now().toISOString();
     if (!res.ok) {
       keepEvents(run, [approvalEvent({ at, approver, roster: roster(), verb: decision, ok: false, error: res.error, index: held.index })], log);
-      // The refused call is shown too (a person deciding their own call is a teaching moment); the route replies with the error, the page re-reads the run.
-      if (res.trace) held.refused = { decision, by: approver, reason: res.reason, trace: res.trace };
+      // A refused answer is shown too (a person deciding their own call is a teaching moment); the route replies with the error, the page re-reads the run.
+      // A no-reply (the Privilege demo did not answer) is no refusal: the door never decided, so it is kept as a no-reply exchange.
+      delete held.refused; delete held.noReply;
+      if (res.error === 'pep_down') held.noReply = { decision, by: approver, trace: res.trace };
+      else if (res.trace) held.refused = { decision, by: approver, reason: res.reason, trace: res.trace };
       throw Object.assign(new Error(res.reason), { code: res.error });
     }
-    delete held.refused;
+    delete held.refused; delete held.noReply;
     held.resolution = { decision, by: approver };
     if (res.trace) held.approvalCall = { decision, by: approver, trace: res.trace };
     keepEvents(run, [approvalEvent({ at, approver, roster: roster(), verb: decision, ok: true, index: held.index })], log);

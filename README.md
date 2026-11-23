@@ -72,6 +72,7 @@ The page shows, under the trace of each run, one run's six layers (person, agent
 - **Where the logs live:** this lab's own stdout holds one line per decision it records (each call's allow, deny or hold, each approval answer, the start of a run). No token, credential or gateway address is written. The Privilege demo's logs are not read here.
 - **Where they stream:** nowhere today. The family log collector does not name this container.
 - **Not logged today:** PingOne Authorize (this lab does not call it), the agent gateway (the door is the policy point, shown under Privilege) and the resource server (the tool writes no log this lab reads). An allow is the door's decision, not confirmation that the tool ran.
-- **Partial records:** a call that got no reply has no row; the record says so.
+- **Partial records:** a call that got no reply has no row; the record says so. An approval answer that got no reply is a no-reply exchange on the trace, never a refusal.
 - **Time:** each row is the moment the lab had the door's answer.
 - **Shared panel:** `web/src/run-observability/` and `server/src/runObservability.js` are vendored from AI-DEMO-Standalone `shared/run-observability` and pinned (`scripts/run-observability-checkPin.mjs`). This lab reads no logs, so it vendors no readers file.
+- **Inherited text (not edited here):** `web/src/run-observability/run-observability.sha256` omits the header comment block of the canonical manifest. The five file hashes match the canonical, so the pin is correct. The fix belongs upstream in AI-DEMO-Standalone `shared/run-observability`.

@@ -24,6 +24,7 @@ export function exchangesOf(steps) {
   for (const s of steps) {
     if (s.trace) list.push({ title: `Agent calls ${s.tool}`, trace: s.trace });
     if (s.refused?.trace) list.push({ title: `${s.refused.by} tries to ${s.refused.decision}: refused`, trace: s.refused.trace });
+    if (s.noReply?.trace) list.push({ title: `${s.noReply.by} tries to ${s.noReply.decision}: no reply from the Privilege demo`, trace: s.noReply.trace });
     if (s.approvalCall?.trace) list.push({ title: `${s.approvalCall.by} ${s.approvalCall.decision === "approve" ? "approves" : "denies"} the held call`, trace: s.approvalCall.trace });
   }
   return list.map((e, n) => ({ ...e, step: n + 1, status: e.trace.response?.status ?? null }));

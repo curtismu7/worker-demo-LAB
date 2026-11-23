@@ -133,6 +133,9 @@ describe('the record of one run', () => {
     expect(run.status).toBe('parked');
     await expect(r.resolve(run.id, { decision: 'approve', approver: 'priya' })).rejects.toMatchObject({ code: 'pep_down' });
     expect(run.obs.noReplies).toBe(1);
+    // The held call was not refused: the door never answered. The page shows a no-reply exchange, not a refusal.
+    expect(run.steps.at(-1).refused).toBeUndefined();
+    expect(run.steps.at(-1).noReply).toMatchObject({ decision: 'approve', by: 'priya' });
     const rec = await runRecord(run, { clock: Date.now });
     expect(assertRunObservability(rec)).toEqual([]);
     expect(rec.reasons.privilege).toMatch(/partial/);
