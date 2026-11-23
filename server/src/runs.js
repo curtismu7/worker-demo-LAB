@@ -4,14 +4,17 @@ import { decideApproval } from './approvals.js';
 import { mintToken, claimSummary } from './tokens.js';
 import { createPiFlowLogin } from './pfTokens.js';
 import { SCENARIOS, AGENT_SUB } from './scenarios.js';
+import { approvalEvent, callEvents, createRunLog, keepEvents, ranOnApprovalEvent, startEvents } from './runObs.js';
 
 export { AGENT_SUB };
 export const ARM_TTL_MS = 60 * 60 * 1000;
 
 // Runs a scenario's steps in order. A deny does not stop the run (the agent reports it and moves on); a hold parks the run,
 // since nothing after it should happen before a person answers; an error stops it. A parked run is finished by resolve().
-export function createRunner({ cfg, fetchImpl = fetch, now = () => new Date() }) {
+export function createRunner({ cfg, fetchImpl = fetch, now = () => new Date(), log = createRunLog() }) {
   const pfLoginClient = cfg.pfAuthClientId ? createPiFlowLogin({ cfg, fetchImpl, now }) : null;
+  // The names the lab knows: a stdout line carries only these (see runObs.js actorOf).
+  const roster = () => [...cfg.personas, AGENT_SUB];
   const runs = new Map();
   const ctxs = new Map(); // runId -> { tokens, tp }. Server-side only: tokens never reach a response.
 
@@ -72,7 +75,10 @@ export function createRunner({ cfg, fetchImpl = fetch, now = () => new Date() })
       const agent = s.agent ?? AGENT_SUB;
       const out = await callTool({ url: cfg.pepUrl, token: await tokenFor(ctx, run.persona, agent, s.scope), name: s.tool, args: s.args, id: i + 1, traceparent: ctx.tp, fetchImpl });
       ctx.tp = out.traceparent ?? ctx.tp;
-      run.steps.push({ index: i, agent, scope: s.scope ?? null, tool: s.tool, args: s.args, note: s.note, expected: s.expect, ...out, asDesigned: out.outcome === s.expect });
+      const at = now().toISOString(); // the moment the door's answer is in hand: the event's time and its stdout line's time
+      const entry = { index: i, agent, scope: s.scope ?? null, tool: s.tool, args: s.args, note: s.note, expected: s.expect, ...out, asDesigned: out.outcome === s.expect };
+      run.steps.push(entry);
+      keepEvents(run, callEvents(entry, { at, who: run.persona ?? AGENT_SUB, roster: roster(), index: i }), log);
       if (out.outcome === 'hold') { run.status = 'parked'; run.parkedAt = i; return; }
       if (out.outcome === 'error') { run.status = 'failed'; return; }
     }
@@ -85,9 +91,12 @@ export function createRunner({ cfg, fetchImpl = fetch, now = () => new Date() })
     if (sc.lane === 'unattended' && !isArmed()) throw Object.assign(new Error('Unattended runs are disarmed. Arm them first.'), { code: 'disarmed' });
     if (sc.lane !== 'unattended' && typeof persona !== 'string') throw Object.assign(new Error('persona is required'), { code: 'persona_required' });
     const run = { id: randomUUID(), scenario, lane: sc.lane, persona: sc.lane === 'unattended' ? null : persona, unattended: sc.lane === 'unattended', startedAt: now().toISOString(), status: 'running', claims: null, parkedAt: null, tokens: [], steps: [] };
+    // Rule 27 bookkeeping, not part of the API: the mode the run was made in (its record is only given in that mode) and its events.
+    Object.defineProperty(run, 'obs', { value: { source: cfg.mode === 'mock' ? 'mock' : 'real', events: [], noReplies: 0 } });
     const ctx = { tokens: new Map(), tp: undefined, run, realToken, realM2m: undefined };
     run.claims = claimSummary(await tokenFor(ctx, persona, sc.steps[0].agent ?? AGENT_SUB, sc.steps[0].scope));
     runs.set(run.id, run); ctxs.set(run.id, ctx);
+    keepEvents(run, startEvents({ at: run.startedAt, persona: run.persona, unattended: run.unattended, mock: run.obs.source === 'mock', roster: roster() }), log);
     await execute(run, ctx, 0);
     return run;
   }
@@ -105,7 +114,9 @@ export function createRunner({ cfg, fetchImpl = fetch, now = () => new Date() })
 
     const approverToken = await mintToken({ mintUrl: cfg.mintUrl, persona: approver, fetchImpl });
     const res = await decideApproval({ pepUrl: cfg.pepUrl, token: approverToken, approvalId: held.approvalId, verb: decision, fetchImpl });
+    const at = now().toISOString();
     if (!res.ok) {
+      keepEvents(run, [approvalEvent({ at, approver, roster: roster(), verb: decision, ok: false, index: held.index })], log);
       // The refused call is shown too (a person deciding their own call is a teaching moment); the route replies with the error, the page re-reads the run.
       if (res.trace) held.refused = { decision, by: approver, reason: res.reason, trace: res.trace };
       throw Object.assign(new Error(res.reason), { code: res.error });
@@ -113,13 +124,16 @@ export function createRunner({ cfg, fetchImpl = fetch, now = () => new Date() })
     delete held.refused;
     held.resolution = { decision, by: approver };
     if (res.trace) held.approvalCall = { decision, by: approver, trace: res.trace };
+    keepEvents(run, [approvalEvent({ at, approver, roster: roster(), verb: decision, ok: true, index: held.index })], log);
     if (decision === 'deny') { run.status = 'denied'; run.parkedAt = null; ctxs.delete(id); return run; }
 
     // Approved: the Privilege demo runs the held call itself, once, at the moment of approval (privilege-demo pep.resolve). The agent does
     // not retry (a retry would just be held again). The approval record carries the outcome; show it, then carry on with the plan.
     const o = res.record?.outcome;
-    run.steps.push({ index: held.index, ranOnApproval: true, agent: held.agent, scope: held.scope, tool: held.tool, args: held.args, note: 'Run once by the policy point when the approval was given.',
-      expected: 'allow', outcome: o?.executed ? 'allow' : o?.decision === 'deny' ? 'deny' : 'error', rule: o?.rule, reason: o?.reason, result: o?.result, asDesigned: o?.executed === true });
+    const once = { index: held.index, ranOnApproval: true, agent: held.agent, scope: held.scope, tool: held.tool, args: held.args, note: 'Run once by the policy point when the approval was given.',
+      expected: 'allow', outcome: o?.executed ? 'allow' : o?.decision === 'deny' ? 'deny' : 'error', rule: o?.rule, reason: o?.reason, result: o?.result, asDesigned: o?.executed === true };
+    run.steps.push(once);
+    keepEvents(run, [ranOnApprovalEvent(once, { at, who: run.persona ?? AGENT_SUB, roster: roster(), index: held.index })], log);
     run.parkedAt = null;
     if (!o?.executed) { run.status = 'failed'; ctxs.delete(id); return run; }
     await execute(run, ctx, held.index + 1);

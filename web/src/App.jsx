@@ -9,6 +9,7 @@ import talkMd from "../../docs/talk-track.md?raw";
 import ShelfLink from "./components/ShelfLink.jsx";
 import VerifyMark from "./components/VerifyMark.jsx";
 import GatewayTrace from "./gateway-trace/GatewayTrace.jsx";
+import RunObs from "./RunObs.jsx";
 // Opened from Customer Agent LAB (UC38 and UC45 route here): strip below the banner + header Back only; nothing is preselected.
 import ReturnLink from "./return-link/ReturnLink.jsx";
 
@@ -286,6 +287,7 @@ export default function App() {
             ))}
           </ol>
           <GatewayTrace exchanges={exchangesOf(steps.slice(0, shown))} source={info.mode === "mock" ? "mock" : "real"} basisNote={info.mode === "mock" ? MOCK_BASIS : undefined} />
+          {shown >= steps.length && <RunObs source={info.mode === "mock" ? "mock" : "real"} runId={run.id} stamp={`${run.status}|${steps.length}`} />}
         </section>
       )}
       {run && <TokenPanel tokens={run.tokens} mock={info.mode === "mock"} />}

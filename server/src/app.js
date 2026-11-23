@@ -13,6 +13,7 @@ import { CHANNELS } from './channels.js';
 import { loadCustomer } from './customer.js';
 import { makeHostCheck, sameOriginWrites } from './safety.js';
 import { shelfInfo } from './shelfLink.js';
+import { runRecord } from './runObs.js';
 
 export const DEMO = { id: 'worker-demo', name: 'Worker Agent Demo', version: '0.3.0' };
 
@@ -145,6 +146,18 @@ export function createApp({ cfg, now = () => new Date(), fetchImpl }) {
 
   // The header "Shelf" button. Before the /api 404 below and outside the web-build check, so it answers with or without a build.
   app.get('/api/shelf', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json(shelfInfo()); });
+  // Rule 27: one run's record, in the mode the run was made in only (a Mock run is never given as a Real one, or the reverse). GET only.
+  app.all('/api/run-observability', wrap(async (req, res) => {
+    if (req.method !== 'GET') return res.set('Allow', 'GET').status(405).json({ error: 'method_not_allowed' });
+    const id = req.query.runId;
+    if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/.test(id)) return res.status(400).json({ error: 'bad_run_id', message: 'runId must be the id of a run this lab made.' });
+    const run = req.runner.get(id);
+    if (!run) return res.status(404).json({ error: 'not_found', message: 'There is no such run here: it was reset, or it never started in this session.' });
+    const current = cfg.mode === 'mock' ? 'mock' : 'real';
+    if (run.obs.source !== current) return res.status(409).json({ error: 'other_mode', message: `That run was made in ${run.obs.source === 'mock' ? 'Mock' : 'Real'}. Switch the mode to see it.` });
+    res.set('Cache-Control', 'no-store');
+    return res.json({ record: await runRecord(run) });
+  }));
   app.use('/api', (_req, res) => res.status(404).json({ error: 'not_found' }));
   const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/dist');
   if (fs.existsSync(dist)) {
