@@ -10,7 +10,8 @@ import ShelfLink from "./components/ShelfLink.jsx";
 import VerifyMark from "./components/VerifyMark.jsx";
 import GatewayTrace from "./gateway-trace/GatewayTrace.jsx";
 import RunObs from "./RunObs.jsx";
-// Opened from Customer Agent LAB (UC38 and UC45 route here): strip below the banner + header Back only; nothing is preselected.
+import ModeModal from "./mode-modal/ModeModal.jsx";
+// Opened from Customer Agent LAB (UC38 and UC45 route here): strip at the top of main + header Back only; nothing is preselected.
 import ReturnLink from "./return-link/ReturnLink.jsx";
 
 const SPEEDS = [0.5, 1, 2, 4];
@@ -29,6 +30,12 @@ export function exchangesOf(steps) {
   }
   return list.map((e, n) => ({ ...e, step: n + 1, status: e.trace.response?.status ?? null }));
 }
+
+// The Real-or-mock modal's lines (replaces the old simulation banner). Hosted only changes the opening word; REAL says what stays mocked.
+export const MODE_LINES = {
+  mock: (hosted) => `${hosted ? "Hosted and simulated" : "Simulated"}: GitHub, CloudWatch, the knowledge base and the backlog are mocks, and a mock table inside this app that mirrors the Privilege demo makes every policy decision. Tokens are mock-issued and unsigned, and your runs are private to this browser session.`,
+  real: "Tokens come from a real PingFederate login (pi.flow) and policy decisions come from the local Privilege demo. GitHub, CloudWatch, the knowledge base and the backlog are still mocks.",
+};
 
 const THEME_KEY = "wkd.theme";
 const THEMES = ["auto", "light", "dark"];
@@ -81,6 +88,7 @@ export default function App() {
   const [customer, setCustomer] = useState({ brand: { name: "Worker agent demo" }, vocabulary: { person: "Person", agent: "Agent" } });
   const [presenter, setPresenter] = useState(false);
   const [info, setInfo] = useState({ mode: "local", hosted: false });
+  const [infoKnown, setInfoKnown] = useState(false); // the modal waits for /api/info: the default above must never flash REAL
   const changeMode = async (source) => {
     try {
       const res = await fetch("/api/mode", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source }) });
@@ -111,7 +119,7 @@ export default function App() {
       setScenarioId(s.scenarios[0]?.id ?? ""); setPersona(p.personas.includes(s.scenarios[0]?.persona) ? s.scenarios[0].persona : p.personas[0] ?? "");
     }).catch((e) => setError(e.message));
     getArm().then(setArmState).catch(() => {});
-    getInfo().then((i) => { if (i?.mode) setInfo(i); setInfoVersion(i?.version || null); }).catch(() => {});
+    getInfo().then((i) => { if (i?.mode) { setInfo(i); setInfoKnown(true); } setInfoVersion(i?.version || null); }).catch(() => {});
     Promise.all([getChannels(), getCustomer()]).then(([c, cu]) => { setChannels(Array.isArray(c?.channels) ? c.channels : []); if (cu?.brand?.name) setCustomer(cu); setChannelId(cu?.defaultChannel ?? ""); }).catch(() => {});
     return () => clearTimeout(timer.current);
   }, []);
@@ -189,11 +197,6 @@ export default function App() {
         </TopMenu>
       </header>
     <main id="main" className={`page${presenter ? " presenter" : ""}`}>
-      <p className="banner" role="note">
-        {info.mode === "mock"
-          ? <><strong>Hosted and simulated.</strong> GitHub, CloudWatch, the knowledge base and the backlog are mocks. Policy decisions come from a mock table inside this app that mirrors the Privilege demo, and tokens are mock-issued and unsigned. Your runs are private to this browser session.</>
-          : <><strong>Real sign-in.</strong> Tokens come from a real PingFederate login (pi.flow). GitHub, CloudWatch, the knowledge base and the backlog are mocks. Policy decisions come from the local Privilege demo.</>}
-      </p>
       <ReturnLink app="worker-demo" />
       {info.source === "real" && realAuth.checked && realAuth.available && !realAuth.subject && (
         <section className="card" aria-labelledby="real-signin-h">
@@ -295,6 +298,7 @@ export default function App() {
       <TalkTrackDialog isOpen={talkOpen} onClose={() => setTalkOpen(false)} talk={talkSteps} />
 
     </main>
+    <ModeModal key="mode-modal" mode={info.mode === "mock" ? "mock" : "real"} lines={{ mock: MODE_LINES.mock(info.hosted === true), real: MODE_LINES.real }} suppress={!infoKnown} storageKey="wkd-mode" />
     </>
   );
 }
