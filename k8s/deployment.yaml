@@ -1,5 +1,5 @@
 # MOCK-ONLY hosted build of worker-demo for the SE cluster (rule 18). Same image as the standalone, MODE=mock, WORKER_HOSTED=1
-# (the banner then says hosted and simulated). No secrets, no tenant ids, no volumes with data. Every browser session gets its own
+# (the opening modal then says hosted and simulated). No secrets, no tenant ids, no volumes with data. Every browser session gets its own
 # in-memory workspace, so visitors are isolated; state is lost on a restart, which is fine for a demo.
 # Placeholders in ${...} are filled by k8s/deploy.sh; nothing here names a real host or registry path.
 apiVersion: apps/v1

@@ -1,6 +1,6 @@
 # Talk track for SEs
 
-About ten minutes. Start it (`npm start`, then http://127.0.0.1:6700/), turn on **Presenter** if the room is large, and pick a channel. Everything is a mock: say so once, early. The banner at the top says it too, and stays on in presenter mode.
+About ten minutes. Start it (`npm start`, then http://127.0.0.1:6700/), turn on **Presenter** if the room is large, and pick a channel. Everything is a mock: say so once, early. The Mock or Real modal on opening says it too.
 
 ## The one-sentence point
 

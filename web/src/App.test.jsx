@@ -137,7 +137,7 @@ describe("parked run", () => {
 });
 
 describe("shell bar", () => {
-  it("brand, Mock badge, the current page pill and the TopMenu in header.shell-bar; the banner opens <main>; Run is the one primary", async () => {
+  it("brand, Mock badge, the current page pill and the TopMenu in header.shell-bar; no simulation banner; Run is the one primary", async () => {
     mockApi();
     const base = globalThis.fetch;
     globalThis.fetch = vi.fn(async (url, init) => (url === "/api/info" ? { ok: true, status: 200, json: async () => ({ mode: "mock", source: "mock", realAvailable: false }) } : base(url, init)));
@@ -150,7 +150,7 @@ describe("shell bar", () => {
     expect(bar.querySelector("[data-testid=mode-badge]")).not.toBeNull();
     expect(bar.querySelector('.shell-nav a[aria-current="page"]')).toHaveTextContent("Worker agent");
     expect(bar.querySelector("[data-testid=top-menu]")).toHaveClass("shell-right");
-    expect(document.querySelector("main").firstElementChild).toHaveClass("banner");
+    expect(document.querySelector("main p.banner")).toBeNull();
     expect([...document.querySelectorAll("button.primary")].map((b) => b.textContent)).toEqual(["Run"]);
   });
 });
@@ -159,19 +159,19 @@ describe("channel, presenter and tokens", () => {
   const SC = { id: "code-review", title: "Code review", blurb: "b", lane: "attended", stepCount: 1, prompt: "Review PR 42.", talk: ["Reads are allowed.", "Merge is refused."] };
   const R = { id: "r", status: "done", persona: "priya", claims: { sub: "priya", act: "worker-agent", groups: [] }, steps: [{ index: 0, tool: "github.read_pr", outcome: "allow", expected: "allow", asDesigned: true, note: "n" }],
     tokens: [{ agent: "worker-agent", scope: null, mock: true, jwt: "aaa.bbb.ccc", claims: { sub: "priya", act: "worker-agent" } }] };
-  it("always shows the simulated banner, the channel frame, and the talk track only in presenter mode", async () => {
+  it("shows the channel frame, and the talk track only in presenter mode, with no simulation banner", async () => {
     globalThis.fetch = vi.fn(async (url) => ({ ok: true, status: 200, json: async () => (
       url === "/api/scenarios" ? { scenarios: [SC] } : url === "/api/personas" ? { personas: ["priya"] } : url === "/api/arm" ? { armed: false }
         : url === "/api/channels" ? { channels: [{ id: "teams", name: "Microsoft Teams", how: "h", identity: "Authenticate the user through Ping." }, { id: "hr-chatbot", name: "HR chatbot (existing site)", how: "h2", identity: "i2" }] }
           : url === "/api/customer" ? { brand: { name: "Acme Power" }, defaultChannel: "teams", vocabulary: {} } : R) }));
     render(<App />);
     await waitFor(() => expect(screen.getByRole("heading", { name: "Acme Power" })).toBeInTheDocument());
-    expect(screen.getByRole("note")).toHaveTextContent(/Simulated|Real sign-in/);
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("region", { name: "Asked in Microsoft Teams" })).toHaveTextContent("Review PR 42."));
     expect(screen.queryByRole("complementary", { name: "Talk track" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Presenter" }));
     expect(screen.getByRole("complementary", { name: "Talk track" })).toHaveTextContent("Merge is refused.");
-    expect(screen.getByRole("note")).toBeInTheDocument(); // still shown in presenter mode
+    expect(screen.queryByRole("note")).not.toBeInTheDocument(); // presenter mode adds no banner either
     fireEvent.change(screen.getByLabelText("Channel"), { target: { value: "hr-chatbot" } });
     expect(screen.getByRole("region", { name: "Asked in HR chatbot (existing site)" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
@@ -185,16 +185,6 @@ describe("channel, presenter and tokens", () => {
     fireEvent.click(screen.getByRole("button", { name: "JSON" }));
     expect(screen.getByLabelText("Decoded claims", { selector: "pre" })).toHaveTextContent('"act": "worker-agent"');
     setJsonView("form");
-  });
-});
-
-describe("hosted mock banner", () => {
-  it("says hosted and simulated, and that runs are private, when the build is mock", async () => {
-    globalThis.fetch = vi.fn(async (url) => ({ ok: true, status: 200, json: async () => (
-      url === "/api/info" ? { mode: "mock", hosted: true, simulated: true } : url === "/api/scenarios" ? { scenarios: [] } : url === "/api/personas" ? { personas: [] } : { armed: false }) }));
-    render(<App />);
-    await waitFor(() => expect(screen.getByRole("note")).toHaveTextContent(/Hosted and simulated/));
-    expect(screen.getByRole("note")).toHaveTextContent(/private to this browser session/);
   });
 });
 
